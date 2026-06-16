@@ -14,6 +14,7 @@ export class HUD {
   onTowerSelected: ((towerId: string | null) => void) | null = null;
   onStartWave: (() => void) | null = null;
   onRestart: (() => void) | null = null;
+  onCycleSpeed: (() => void) | null = null;
 
   constructor(store: GameStore) {
     this.store = store;
@@ -54,11 +55,17 @@ export class HUD {
     const state = this.store.getState();
 
     // Top bar
-    this.topBar.innerHTML = `
-      <span>WAVE ${state.currentWave}/${state.totalWaves}</span>
-      <span>ISM: ${state.ism}</span>
-      <span>BASE HP: ${state.baseHp}/${state.maxBaseHp}</span>
-    `;
+    this.topBar.innerHTML = '';
+
+    const info = document.createElement('span');
+    info.innerHTML = `WAVE ${state.currentWave}/${state.totalWaves} &nbsp; ISM: ${state.ism} &nbsp; BASE HP: ${state.baseHp}/${state.maxBaseHp}`;
+    this.topBar.appendChild(info);
+
+    const speedBtn = document.createElement('button');
+    speedBtn.textContent = `x${state.speed}`;
+    speedBtn.style.cssText = `background:${state.speed > 1 ? '#553' : '#333'};color:${state.speed > 1 ? '#ff4' : '#aaa'};border:1px solid ${state.speed > 1 ? '#885' : '#555'};padding:4px 12px;cursor:pointer;font-family:monospace;font-size:13px;font-weight:bold;border-radius:4px;`;
+    speedBtn.onclick = () => this.onCycleSpeed?.();
+    this.topBar.appendChild(speedBtn);
 
     // Bottom bar
     this.bottomBar.innerHTML = '';

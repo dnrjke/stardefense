@@ -2,6 +2,9 @@ import { createStore } from 'zustand/vanilla';
 
 export type GamePhase = 'build' | 'wave' | 'result' | 'gameover' | 'clear';
 
+const SPEED_OPTIONS = [1, 2, 4, 8, 16] as const;
+export type SpeedMultiplier = (typeof SPEED_OPTIONS)[number];
+
 export interface GameState {
   phase: GamePhase;
   ism: number;
@@ -10,6 +13,7 @@ export interface GameState {
   currentWave: number;
   totalWaves: number;
   availableTowers: string[];
+  speed: SpeedMultiplier;
 
   setPhase: (phase: GamePhase) => void;
   addIsm: (amount: number) => void;
@@ -17,6 +21,7 @@ export interface GameState {
   damageBase: (amount: number) => void;
   nextWave: () => void;
   unlockTower: (id: string) => void;
+  cycleSpeed: () => void;
   reset: () => void;
 }
 
@@ -32,6 +37,7 @@ export function createGameStore(totalWaves: number) {
     currentWave: 0,
     totalWaves,
     availableTowers: ['sol'],
+    speed: 1,
 
     setPhase: (phase) => set({ phase }),
 
@@ -56,12 +62,18 @@ export function createGameStore(totalWaves: number) {
       availableTowers: s.availableTowers.includes(id) ? s.availableTowers : [...s.availableTowers, id],
     })),
 
+    cycleSpeed: () => set((s) => {
+      const idx = SPEED_OPTIONS.indexOf(s.speed);
+      return { speed: SPEED_OPTIONS[(idx + 1) % SPEED_OPTIONS.length] };
+    }),
+
     reset: () => set({
       phase: 'build',
       ism: INITIAL_ISM,
       baseHp: INITIAL_BASE_HP,
       currentWave: 0,
       availableTowers: ['sol'],
+      speed: 1,
     }),
   }));
 }

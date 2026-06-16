@@ -147,6 +147,11 @@ async function main() {
     window.location.reload();
   };
 
+  hud.onCycleSpeed = () => {
+    store.getState().cycleSpeed();
+    hud.render();
+  };
+
   // ── Pointer → Place Tower or Open Radial Menu ──
   scene.onPointerDown = (_evt, pickResult) => {
     const state = store.getState();
@@ -209,8 +214,9 @@ async function main() {
 
   // ── Render Loop ──
   engine.runRenderLoop(() => {
-    const deltaMs = engine.getDeltaTime();
-    const phase = store.getState().phase;
+    const state = store.getState();
+    const deltaMs = engine.getDeltaTime() * state.speed;
+    const phase = state.phase;
 
     const alpha = fixedStep.advance(deltaMs, () => {
       if (phase === 'wave') {
