@@ -1,0 +1,19 @@
+{
+  "name": "stardefense",
+  "version": "0.1.0",
+  "description": "천체 물리 기반 타워 디펜스",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0"
+  },
+  "dependencies": {
+    "@babylonjs/core": "^8.44.1",
+    "zustand": "^5.0.12"
+  }
+}

@@ -1,0 +1,130 @@
+import type { GameStore } from '@/app/store/GameStore';
+import { TOWER_DEFS } from '@/shared/data/TowerData';
+
+export class HUD {
+  private container: HTMLDivElement;
+  private topBar: HTMLDivElement;
+  private bottomBar: HTMLDivElement;
+  private tutorialOverlay: HTMLDivElement;
+  private endScreen: HTMLDivElement;
+  private store: GameStore;
+
+  private selectedTowerId: string | null = null;
+  onTowerSelected: ((towerId: string | null) => void) | null = null;
+  onStartWave: (() => void) | null = null;
+  onRestart: (() => void) | null = null;
+
+  constructor(store: GameStore) {
+    this.store = store;
+
+    this.container = document.createElement('div');
+    this.container.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;font-family:monospace;color:#fff;';
+    document.body.appendChild(this.container);
+
+    // Top bar
+    this.topBar = document.createElement('div');
+    this.topBar.style.cssText = 'position:absolute;top:0;left:0;right:0;height:40px;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:space-between;padding:0 16px;pointer-events:auto;font-size:14px;';
+    this.container.appendChild(this.topBar);
+
+    // Bottom bar
+    this.bottomBar = document.createElement('div');
+    this.bottomBar.style.cssText = 'position:absolute;bottom:0;left:0;right:0;height:64px;background:rgba(0,0,0,0.7);display:flex;align-items:center;gap:8px;padding:0 16px;pointer-events:auto;';
+    this.container.appendChild(this.bottomBar);
+
+    // Tutorial overlay
+    this.tutorialOverlay = document.createElement('div');
+    this.tutorialOverlay.style.cssText = 'position:absolute;top:50px;left:50%;transform:translateX(-50%);background:rgba(0,0,30,0.85);border:1px solid #446;padding:12px 24px;border-radius:8px;font-size:14px;text-align:center;pointer-events:auto;display:none;max-width:400px;';
+    this.container.appendChild(this.tutorialOverlay);
+
+    // End screen
+    this.endScreen = document.createElement('div');
+    this.endScreen.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.8);pointer-events:auto;';
+    this.container.appendChild(this.endScreen);
+
+    this.render();
+  }
+
+  render() {
+    const state = this.store.getState();
+
+    // Top bar
+    this.topBar.innerHTML = `
+      <span>WAVE ${state.currentWave}/${state.totalWaves}</span>
+      <span>ISM: ${state.ism}</span>
+      <span>BASE HP: ${state.baseHp}/${state.maxBaseHp}</span>
+    `;
+
+    // Bottom bar
+    this.bottomBar.innerHTML = '';
+
+    if (state.phase === 'build') {
+      // Start wave button
+      const startBtn = document.createElement('button');
+      startBtn.textContent = `START WAVE ${state.currentWave + 1}`;
+      startBtn.style.cssText = 'background:#335;color:#aaf;border:1px solid #558;padding:8px 16px;cursor:pointer;font-family:monospace;font-size:13px;border-radius:4px;';
+      startBtn.onclick = () => this.onStartWave?.();
+      this.bottomBar.appendChild(startBtn);
+
+      const sep = document.createElement('div');
+      sep.style.cssText = 'width:1px;height:32px;background:#334;';
+      this.bottomBar.appendChild(sep);
+    }
+
+    // Tower palette
+    for (const tid of state.availableTowers) {
+      const def = TOWER_DEFS[tid];
+      if (!def) continue;
+      const btn = document.createElement('button');
+      const selected = this.selectedTowerId === tid;
+      btn.textContent = `${def.nameKo} (${def.cost})`;
+      btn.style.cssText = `background:${selected ? '#446' : '#223'};color:#ddf;border:1px solid ${selected ? '#88a' : '#445'};padding:6px 12px;cursor:pointer;font-family:monospace;font-size:12px;border-radius:4px;`;
+      btn.onclick = () => {
+        this.selectedTowerId = this.selectedTowerId === tid ? null : tid;
+        this.onTowerSelected?.(this.selectedTowerId);
+        this.render();
+      };
+      this.bottomBar.appendChild(btn);
+    }
+  }
+
+  showTutorial(text: string) {
+    this.tutorialOverlay.textContent = text;
+    this.tutorialOverlay.style.display = 'block';
+  }
+
+  hideTutorial() {
+    this.tutorialOverlay.style.display = 'none';
+  }
+
+  showEndScreen(victory: boolean) {
+    this.endScreen.style.display = 'flex';
+    this.endScreen.innerHTML = `
+      <div style="font-size:32px;margin-bottom:16px;color:${victory ? '#4af' : '#f44'}">
+        ${victory ? 'WAVE CLEAR!' : 'GAME OVER'}
+      </div>
+      <div style="font-size:14px;margin-bottom:24px;color:#aaa">
+        ${victory ? '태양계 외곽 방어 성공. 시리우스 항로가 개방됩니다.' : '기지가 파괴되었습니다.'}
+      </div>
+      <button id="restartBtn" style="background:#335;color:#aaf;border:1px solid #558;padding:10px 24px;cursor:pointer;font-family:monospace;font-size:14px;border-radius:4px;">
+        ${victory ? 'CONTINUE' : 'RETRY'}
+      </button>
+    `;
+    document.getElementById('restartBtn')!.onclick = () => this.onRestart?.();
+  }
+
+  hideEndScreen() {
+    this.endScreen.style.display = 'none';
+  }
+
+  getSelectedTowerId(): string | null {
+    return this.selectedTowerId;
+  }
+
+  clearSelection() {
+    this.selectedTowerId = null;
+  }
+
+  dispose() {
+    this.container.remove();
+  }
+}
