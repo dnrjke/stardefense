@@ -88,6 +88,13 @@ export class WaveEngine {
     }
   }
 
+  /** Update enemy shader visuals each render frame */
+  updateVisuals(dt: number) {
+    for (const enemy of this.enemies) {
+      if (enemy.alive) enemy.updateVisuals(dt);
+    }
+  }
+
   interpolate(alpha: number) {
     for (const enemy of this.enemies) {
       enemy.interpolate(alpha);

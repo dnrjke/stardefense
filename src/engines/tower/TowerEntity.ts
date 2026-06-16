@@ -4,6 +4,126 @@ import type { EnemyEntity } from '@/engines/wave/EnemyEntity';
 import { Projectile } from './Projectile';
 import { ciToRgb } from '@/shared/data/ColorUtil';
 
+// ── Tower Star Shader ─────────────────────────────────────────────────────
+// FBM noise contour lines + Fresnel rim glow + NdotV limb darkening
+// Inspired by ArcanaCoreShader DNA, simplified for 60fps tower defense
+
+const _TOWER_VERT = /* glsl */`
+precision highp float;
+
+attribute vec3 position;
+attribute vec3 normal;
+
+uniform mat4 worldViewProjection;
+uniform mat4 world;
+uniform vec3 cameraPosition;
+
+varying vec3 vLocalPos;
+varying vec3 vWorldNorm;
+varying vec3 vViewDir;
+
+void main() {
+    gl_Position = worldViewProjection * vec4(position, 1.0);
+    vLocalPos   = normalize(position);
+    vWorldNorm  = normalize((world * vec4(normal, 0.0)).xyz);
+    vec3 wPos   = (world * vec4(position, 1.0)).xyz;
+    vViewDir    = normalize(cameraPosition - wPos);
+}
+`;
+
+const _TOWER_FRAG = /* glsl */`
+precision highp float;
+
+varying vec3 vLocalPos;
+varying vec3 vWorldNorm;
+varying vec3 vViewDir;
+
+uniform float uTime;
+uniform vec3  uBaseColor;
+uniform float uSeed;
+
+// ── Value noise + FBM (4 octaves) ──
+float _h(float n) { return fract(sin(n) * 43758.5453123); }
+float _h3(vec3 p) { return _h(dot(p, vec3(127.1, 311.7, 74.3))); }
+float _vn(vec3 p) {
+    vec3 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+        mix(mix(_h3(i),              _h3(i+vec3(1,0,0)), f.x),
+            mix(_h3(i+vec3(0,1,0)), _h3(i+vec3(1,1,0)), f.x), f.y),
+        mix(mix(_h3(i+vec3(0,0,1)), _h3(i+vec3(1,0,1)), f.x),
+            mix(_h3(i+vec3(0,1,1)), _h3(i+vec3(1,1,1)), f.x), f.y),
+        f.z);
+}
+float _fbm(vec3 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 4; i++) {
+        v += a * _vn(p);
+        p  = p * 2.1 + vec3(3.71, 6.83, 1.27);
+        a *= 0.5;
+    }
+    return v;
+}
+
+void main() {
+    vec3 n = vLocalPos;
+
+    // ── Two FBM layers with per-tower seed ──
+    float tSpeed = 0.12;
+    vec3  fp1 = n * 3.5 + vec3(uSeed, 0.0, uTime * tSpeed);
+    vec3  fp2 = n * 5.0 + vec3(uSeed * 0.7, uTime * tSpeed * 0.6, uTime * tSpeed * 0.4 + uSeed * 1.3);
+    float f1  = _fbm(fp1);
+    float f2  = _fbm(fp2);
+
+    // ── Contour lines (level-crossing bands) ──
+    float density = 4.0;
+    float lw1 = 0.06;
+    float lw2 = 0.08;
+    float c1 = 1.0 - smoothstep(0.0, lw1, abs(fract(f1 * density) - 0.5) * 2.0);
+    float c2 = 1.0 - smoothstep(0.0, lw2, abs(fract(f2 * density * 0.7) - 0.5) * 2.0);
+
+    // ── Threshold sparsification ──
+    float thresh1 = 0.55;
+    float thresh2 = 0.45;
+    float w1 = max(0.0, c1 - thresh1) / max(1.0 - thresh1, 0.001);
+    float w2 = max(0.0, c2 - thresh2) / max(1.0 - thresh2, 0.001);
+    float lines = w1 * 0.65 + w2 * 0.35;
+
+    // ── NdotV limb darkening (CoreStarShader DNA) ──
+    vec3  N     = normalize(vWorldNorm);
+    vec3  V     = normalize(vViewDir);
+    float NdotV = max(dot(N, V), 0.0);
+    float limb  = mix(0.45, 1.0, NdotV);
+
+    // ── Fresnel rim glow ──
+    float fresnel = pow(1.0 - NdotV, 3.0);
+
+    // ── Pulsing emissive (subtle sine oscillation) ──
+    float pulse = 0.85 + 0.15 * sin(uTime * 2.0 + uSeed * 10.0);
+
+    // ── Compose color ──
+    // Base: star color with limb darkening
+    vec3 baseCol = uBaseColor * limb * pulse;
+    // Lines add bright highlights in star color
+    vec3 lineCol = uBaseColor * 1.4 * lines;
+    // Fresnel rim in slightly brightened star color
+    vec3 rimCol  = (uBaseColor * 0.5 + vec3(0.5)) * fresnel * 0.6;
+
+    vec3 finalCol = baseCol + lineCol + rimCol;
+
+    gl_FragColor = vec4(finalCol, 1.0);
+}
+`;
+
+// Register shaders in Effect.ShadersStore for WebGPU GLSL->WGSL transpilation
+if (!BABYLON.Effect.ShadersStore['towerStarVertexShader']) {
+  BABYLON.Effect.ShadersStore['towerStarVertexShader']   = _TOWER_VERT;
+  BABYLON.Effect.ShadersStore['towerStarFragmentShader'] = _TOWER_FRAG;
+}
+
+/** Global tower seed counter for visual variety */
+let _towerSeedCounter = 0;
+
 export class TowerEntity {
   readonly def: TowerDef;
   readonly row: number;
@@ -15,6 +135,9 @@ export class TowerEntity {
   private color: BABYLON.Color3;
   private rangeSq: number;
   private rangeDisc: BABYLON.Mesh;
+  private shaderMat: BABYLON.ShaderMaterial;
+  private seed: number;
+  private timeAccum = 0;
 
   constructor(scene: BABYLON.Scene, def: TowerDef, worldPos: BABYLON.Vector3, row: number, col: number) {
     this.scene = scene;
@@ -22,22 +145,38 @@ export class TowerEntity {
     this.row = row;
     this.col = col;
     this.rangeSq = def.range * def.range;
+    this.seed = (_towerSeedCounter++) * 0.37;
 
     const [r, g, b] = ciToRgb(def.ci);
     this.color = new BABYLON.Color3(r, g, b);
 
     this.mesh = BABYLON.MeshBuilder.CreateSphere(`tower_${def.id}_${row}_${col}`, {
       diameter: 0.6,
-      segments: 16,
+      segments: 24,
     }, scene);
     this.mesh.position.copyFrom(worldPos);
     this.mesh.position.y = 0.35;
 
-    const mat = new BABYLON.StandardMaterial(`towerMat_${this.mesh.name}`, scene);
-    mat.diffuseColor = this.color;
-    mat.emissiveColor = this.color.scale(0.4);
-    mat.specularColor = new BABYLON.Color3(0.5, 0.5, 0.5);
-    this.mesh.material = mat;
+    // Custom ShaderMaterial with FBM noise + Fresnel rim + limb darkening
+    this.shaderMat = new BABYLON.ShaderMaterial(
+      `towerStarMat_${this.mesh.name}`,
+      scene,
+      { vertex: 'towerStar', fragment: 'towerStar' },
+      {
+        attributes: ['position', 'normal'],
+        uniforms: [
+          'worldViewProjection', 'world', 'cameraPosition',
+          'uTime', 'uBaseColor', 'uSeed',
+        ],
+        needAlphaBlending: false,
+      },
+    );
+    this.shaderMat.setFloat('uTime', 0);
+    this.shaderMat.setColor3('uBaseColor', this.color);
+    this.shaderMat.setFloat('uSeed', this.seed);
+    this.shaderMat.backFaceCulling = true;
+
+    this.mesh.material = this.shaderMat;
     this.mesh.isPickable = true;
     this.mesh.metadata = { type: 'tower', row, col };
 
@@ -60,6 +199,12 @@ export class TowerEntity {
 
   get sellValue(): number {
     return Math.floor(this.def.cost * 0.5);
+  }
+
+  /** Update shader time uniform — call every frame (not just fixedUpdate) */
+  updateVisuals(dt: number) {
+    this.timeAccum += dt;
+    this.shaderMat.setFloat('uTime', this.timeAccum);
   }
 
   fixedUpdate(dt: number, enemies: EnemyEntity[]): Projectile | null {
@@ -95,6 +240,7 @@ export class TowerEntity {
 
   dispose() {
     this.rangeDisc.dispose();
+    this.shaderMat.dispose();
     this.mesh.dispose();
   }
 }

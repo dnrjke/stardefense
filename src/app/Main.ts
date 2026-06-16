@@ -26,7 +26,7 @@ async function main() {
   // ── Babylon Engine ──
   const engine = new BABYLON.Engine(canvas, true, {
     preserveDrawingBuffer: false,
-    stencil: false,
+    stencil: true,
   }, true);
 
   const scene = new BABYLON.Scene(engine);
@@ -50,6 +50,72 @@ async function main() {
   hemi.intensity = 0.6;
   hemi.diffuse = new BABYLON.Color3(0.7, 0.7, 1.0);
   hemi.groundColor = new BABYLON.Color3(0.1, 0.1, 0.2);
+
+  // ── GlowLayer ──
+  const glowLayer = new BABYLON.GlowLayer('glowLayer', scene, {
+    blurKernelSize: 32,
+  });
+  glowLayer.intensity = 0.5;
+
+  // ── Starfield Background ──
+  // SolidParticleSystem with hundreds of bright points at varying depths
+  const starfieldSPS = new BABYLON.SolidParticleSystem('starfield', scene, { isPickable: false });
+  const starModel = BABYLON.MeshBuilder.CreatePlane('starModel', { size: 1 }, scene);
+  starfieldSPS.addShape(starModel, 400);
+  starModel.dispose();
+  const starfieldMesh = starfieldSPS.buildMesh();
+  starfieldMesh.isPickable = false;
+  const starfieldMat = new BABYLON.StandardMaterial('starfieldMat', scene);
+  starfieldMat.disableLighting = true;
+  starfieldMat.emissiveColor = new BABYLON.Color3(1, 1, 1);
+  starfieldMat.specularColor = BABYLON.Color3.Black();
+  starfieldMesh.material = starfieldMat;
+  // Exclude starfield from glow (it would bloom everything)
+  glowLayer.addExcludedMesh(starfieldMesh);
+
+  // Initialize star particles
+  starfieldSPS.initParticles = () => {
+    for (let i = 0; i < starfieldSPS.nbParticles; i++) {
+      const p = starfieldSPS.particles[i];
+      // Spread stars in a large dome above the map
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 5 + Math.random() * 20;
+      const height = 8 + Math.random() * 15;
+      p.position.x = Math.cos(angle) * radius;
+      p.position.z = Math.sin(angle) * radius;
+      p.position.y = height;
+      // Face camera (billboard)
+      p.rotation.x = Math.PI / 2;
+      // Random size (tiny dots)
+      const sz = 0.02 + Math.random() * 0.06;
+      p.scaling.x = sz;
+      p.scaling.y = sz;
+      p.scaling.z = sz;
+      // Slight color variation (white to blue-white to warm)
+      const temp = Math.random();
+      if (temp < 0.7) {
+        p.color = new BABYLON.Color4(0.9, 0.92, 1.0, 1);
+      } else if (temp < 0.9) {
+        p.color = new BABYLON.Color4(1.0, 0.95, 0.8, 1);
+      } else {
+        p.color = new BABYLON.Color4(0.7, 0.8, 1.0, 1);
+      }
+      // Store base alpha for twinkling
+      p.props = { baseAlpha: 0.5 + Math.random() * 0.5, twinkleSpeed: 1 + Math.random() * 3, twinklePhase: Math.random() * Math.PI * 2 };
+    }
+  };
+
+  let _starTime = 0;
+  starfieldSPS.updateParticle = (p) => {
+    // Twinkling: subtle alpha oscillation
+    const props = p.props as { baseAlpha: number; twinkleSpeed: number; twinklePhase: number };
+    const twinkle = props.baseAlpha * (0.7 + 0.3 * Math.sin(_starTime * props.twinkleSpeed + props.twinklePhase));
+    if (p.color) p.color.a = twinkle;
+    return p;
+  };
+
+  starfieldSPS.initParticles();
+  starfieldSPS.setParticles();
 
   // ── Map ──
   const mapDef = createMap1_1();
@@ -106,6 +172,11 @@ async function main() {
 
     if (waveDef) hud.showWaveBanner(state.currentWave, waveDef.reward);
 
+    // Wave 2 클리어 시 프록시마 해금 (빌드 페이즈 진입 전)
+    if (state.currentWave === 2) {
+      store.getState().unlockTower('proxima');
+    }
+
     if (state.currentWave >= state.totalWaves) {
       state.setPhase('clear');
       hud.showEndScreen(true);
@@ -128,10 +199,6 @@ async function main() {
     store.getState().nextWave();
 
     const waveIdx = store.getState().currentWave;
-
-    if (waveIdx === 3) {
-      store.getState().unlockTower('proxima');
-    }
 
     store.getState().setPhase('wave');
     hud.hideTutorial();
@@ -217,6 +284,7 @@ async function main() {
     const state = store.getState();
     const deltaMs = engine.getDeltaTime() * state.speed;
     const phase = state.phase;
+    const dtSec = deltaMs / 1000;
 
     const alpha = fixedStep.advance(deltaMs, () => {
       if (phase === 'wave') {
@@ -229,6 +297,14 @@ async function main() {
       waveEngine.interpolate(alpha);
       towerEngine.interpolate(alpha);
     }
+
+    // Update shader visuals every frame (tower FBM animation, enemy effects, projectile glow)
+    towerEngine.updateVisuals(dtSec);
+    waveEngine.updateVisuals(dtSec);
+
+    // Starfield twinkling
+    _starTime += dtSec;
+    starfieldSPS.setParticles();
 
     scene.render();
   });

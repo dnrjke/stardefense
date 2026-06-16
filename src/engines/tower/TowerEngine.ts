@@ -65,6 +65,16 @@ export class TowerEngine {
     return refund;
   }
 
+  /** Update tower + projectile shader visuals each render frame */
+  updateVisuals(dt: number) {
+    for (const tower of this.towers) {
+      tower.updateVisuals(dt);
+    }
+    for (const proj of this.projectiles) {
+      if (proj.alive) proj.updateVisuals(dt);
+    }
+  }
+
   interpolate(alpha: number) {
     for (const proj of this.projectiles) {
       proj.interpolate(alpha);

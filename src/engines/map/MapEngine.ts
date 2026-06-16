@@ -31,11 +31,13 @@ export class MapEngine {
     const halfR = rows / 2;
 
     const buildableMat = new BABYLON.StandardMaterial('tileBuildable', this.scene);
-    buildableMat.diffuseColor = new BABYLON.Color3(0.08, 0.08, 0.15);
+    buildableMat.diffuseColor = new BABYLON.Color3(0.06, 0.06, 0.12);
+    buildableMat.emissiveColor = new BABYLON.Color3(0.02, 0.02, 0.06);
     buildableMat.specularColor = BABYLON.Color3.Black();
 
     const pathMat = new BABYLON.StandardMaterial('tilePath', this.scene);
-    pathMat.diffuseColor = new BABYLON.Color3(0.15, 0.12, 0.25);
+    pathMat.diffuseColor = new BABYLON.Color3(0.10, 0.08, 0.20);
+    pathMat.emissiveColor = new BABYLON.Color3(0.04, 0.03, 0.10);
     pathMat.specularColor = BABYLON.Color3.Black();
 
     for (let r = 0; r < rows; r++) {
