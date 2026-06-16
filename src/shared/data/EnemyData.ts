@@ -18,7 +18,7 @@ export const ENEMY_DEFS: Record<string, EnemyDef> = {
     speed: 1.5,
     armor: 0,
     reward: 10,
-    radius: 0.25,
+    radius: 0.3,
   },
   comet: {
     id: 'comet',
@@ -28,7 +28,7 @@ export const ENEMY_DEFS: Record<string, EnemyDef> = {
     speed: 3.0,
     armor: 0,
     reward: 15,
-    radius: 0.2,
+    radius: 0.25,
   },
   rogue_planet: {
     id: 'rogue_planet',
@@ -38,6 +38,6 @@ export const ENEMY_DEFS: Record<string, EnemyDef> = {
     speed: 0.8,
     armor: 3,
     reward: 30,
-    radius: 0.4,
+    radius: 0.45,
   },
 };

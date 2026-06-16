@@ -7,6 +7,7 @@ export class HUD {
   private bottomBar: HTMLDivElement;
   private tutorialOverlay: HTMLDivElement;
   private endScreen: HTMLDivElement;
+  private waveBanner: HTMLDivElement;
   private store: GameStore;
 
   private selectedTowerId: string | null = null;
@@ -35,6 +36,11 @@ export class HUD {
     this.tutorialOverlay = document.createElement('div');
     this.tutorialOverlay.style.cssText = 'position:absolute;top:50px;left:50%;transform:translateX(-50%);background:rgba(0,0,30,0.85);border:1px solid #446;padding:12px 24px;border-radius:8px;font-size:14px;text-align:center;pointer-events:auto;display:none;max-width:400px;';
     this.container.appendChild(this.tutorialOverlay);
+
+    // Wave banner (shows briefly on wave clear)
+    this.waveBanner = document.createElement('div');
+    this.waveBanner.style.cssText = 'position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);font-size:24px;color:#4af;text-shadow:0 0 20px rgba(60,120,255,0.6);pointer-events:none;display:none;font-weight:bold;';
+    this.container.appendChild(this.waveBanner);
 
     // End screen
     this.endScreen = document.createElement('div');
@@ -114,6 +120,20 @@ export class HUD {
 
   hideEndScreen() {
     this.endScreen.style.display = 'none';
+  }
+
+  showWaveBanner(waveNum: number, reward: number) {
+    this.waveBanner.textContent = `WAVE ${waveNum} CLEAR  +${reward} ISM`;
+    this.waveBanner.style.display = 'block';
+    this.waveBanner.style.opacity = '1';
+    setTimeout(() => {
+      this.waveBanner.style.opacity = '0';
+      this.waveBanner.style.transition = 'opacity 0.5s';
+      setTimeout(() => {
+        this.waveBanner.style.display = 'none';
+        this.waveBanner.style.transition = '';
+      }, 500);
+    }, 1200);
   }
 
   getSelectedTowerId(): string | null {

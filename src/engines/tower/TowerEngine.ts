@@ -51,6 +51,20 @@ export class TowerEngine {
     this.projectiles = this.projectiles.filter(p => p.alive);
   }
 
+  findTowerAt(row: number, col: number): TowerEntity | null {
+    return this.towers.find(t => t.row === row && t.col === col) ?? null;
+  }
+
+  sellTower(tower: TowerEntity): number {
+    const idx = this.towers.indexOf(tower);
+    if (idx === -1) return 0;
+    const refund = tower.sellValue;
+    this.mapEngine.markBuildable(tower.row, tower.col);
+    tower.dispose();
+    this.towers.splice(idx, 1);
+    return refund;
+  }
+
   interpolate(alpha: number) {
     for (const proj of this.projectiles) {
       proj.interpolate(alpha);

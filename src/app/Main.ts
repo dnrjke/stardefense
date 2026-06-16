@@ -4,10 +4,12 @@ import { MapEngine } from '@/engines/map/MapEngine';
 import { TowerEngine } from '@/engines/tower/TowerEngine';
 import { WaveEngine } from '@/engines/wave/WaveEngine';
 import { HUD } from '@/shared/ui/HUD';
+import { RadialMenu } from '@/shared/ui/RadialMenu';
 import { createGameStore } from '@/app/store/GameStore';
 import { createMap1_1 } from '@/shared/data/MapData';
 import { MAP_1_1_WAVES } from '@/shared/data/WaveData';
 import { TOWER_DEFS } from '@/shared/data/TowerData';
+import type { TowerEntity } from '@/engines/tower/TowerEntity';
 
 // ── Tutorial messages ──
 const TUTORIALS: Record<number, string> = {
@@ -61,9 +63,28 @@ async function main() {
   // ── Store ──
   const store = createGameStore(MAP_1_1_WAVES.length);
   const hud = new HUD(store);
+  const radialMenu = new RadialMenu();
 
   // ── Fixed Timestep ──
   const fixedStep = new FixedTimestep();
+
+  // ── Radial Menu State ──
+  let selectedTower: TowerEntity | null = null;
+
+  radialMenu.onSelect = (itemId) => {
+    if (!selectedTower) return;
+    if (itemId === 'sell') {
+      const refund = towerEngine.sellTower(selectedTower);
+      if (refund > 0) store.getState().addIsm(refund);
+      hud.render();
+    }
+    // Future: 'upgrade' handling
+    selectedTower = null;
+  };
+
+  radialMenu.onClose = () => {
+    selectedTower = null;
+  };
 
   // ── Game Logic Wiring ──
 
@@ -83,30 +104,31 @@ async function main() {
     const waveDef = MAP_1_1_WAVES[state.currentWave - 1];
     if (waveDef) state.addIsm(waveDef.reward);
 
+    if (waveDef) hud.showWaveBanner(state.currentWave, waveDef.reward);
+
     if (state.currentWave >= state.totalWaves) {
       state.setPhase('clear');
       hud.showEndScreen(true);
     } else {
       state.setPhase('result');
-      // Auto-transition to build after brief moment
       setTimeout(() => {
         if (store.getState().phase === 'result') {
           store.getState().setPhase('build');
           showTutorial();
           hud.render();
         }
-      }, 500);
+      }, 1500);
     }
     hud.render();
   };
 
   hud.onStartWave = () => {
     if (store.getState().phase !== 'build') return;
+    radialMenu.hide();
     store.getState().nextWave();
 
     const waveIdx = store.getState().currentWave;
 
-    // Unlock proxima at wave 3
     if (waveIdx === 3) {
       store.getState().unlockTower('proxima');
     }
@@ -118,30 +140,50 @@ async function main() {
   };
 
   hud.onTowerSelected = (_towerId) => {
-    // Selection state managed by HUD
+    radialMenu.hide();
   };
 
   hud.onRestart = () => {
-    // Full reload for clean state
     window.location.reload();
   };
 
-  // ── Tile Click → Place Tower ──
+  // ── Pointer → Place Tower or Open Radial Menu ──
   scene.onPointerDown = (_evt, pickResult) => {
     const state = store.getState();
     if (state.phase !== 'build') return;
+    if (radialMenu.isVisible()) return;
 
-    const towerId = hud.getSelectedTowerId();
-    if (!towerId) return;
+    if (!pickResult.hit || !pickResult.pickedMesh?.metadata) return;
+    const meta = pickResult.pickedMesh.metadata;
 
-    if (pickResult.hit && pickResult.pickedMesh?.metadata?.type === 'tile') {
-      const { row, col } = pickResult.pickedMesh.metadata;
+    // Clicked a tower → open radial menu
+    if (meta.type === 'tower') {
+      const tower = towerEngine.findTowerAt(meta.row, meta.col);
+      if (!tower) return;
+
+      selectedTower = tower;
+      hud.clearSelection();
+      hud.render();
+
+      const screenPos = radialMenu.worldToScreen(tower.mesh.position, scene, engine);
+
+      radialMenu.show(screenPos.x, screenPos.y, [
+        { id: 'sell', label: `철거\n+${tower.sellValue}`, color: '#f66' },
+        { id: 'upgrade', label: '강화', color: '#6af', disabled: true },
+      ]);
+      return;
+    }
+
+    // Clicked a tile → place tower
+    if (meta.type === 'tile') {
+      const towerId = hud.getSelectedTowerId();
+      if (!towerId) return;
+
       const def = TOWER_DEFS[towerId];
       if (!def) return;
-
       if (!store.getState().spendIsm(def.cost)) return;
 
-      towerEngine.placeTower(towerId, row, col);
+      towerEngine.placeTower(towerId, meta.row, meta.col);
       hud.render();
     }
   };
@@ -168,16 +210,16 @@ async function main() {
   // ── Render Loop ──
   engine.runRenderLoop(() => {
     const deltaMs = engine.getDeltaTime();
-    const state = store.getState();
+    const phase = store.getState().phase;
 
     const alpha = fixedStep.advance(deltaMs, () => {
-      if (state.phase === 'wave') {
+      if (phase === 'wave') {
         waveEngine.fixedUpdate(fixedStep.fixedDt);
         towerEngine.fixedUpdate(fixedStep.fixedDt, waveEngine);
       }
     });
 
-    if (state.phase === 'wave') {
+    if (phase === 'wave') {
       waveEngine.interpolate(alpha);
       towerEngine.interpolate(alpha);
     }

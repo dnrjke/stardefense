@@ -14,6 +14,7 @@ export class TowerEntity {
   private attackCooldown = 0;
   private color: BABYLON.Color3;
   private rangeSq: number;
+  private rangeDisc: BABYLON.Mesh;
 
   constructor(scene: BABYLON.Scene, def: TowerDef, worldPos: BABYLON.Vector3, row: number, col: number) {
     this.scene = scene;
@@ -37,23 +38,28 @@ export class TowerEntity {
     mat.emissiveColor = this.color.scale(0.4);
     mat.specularColor = new BABYLON.Color3(0.5, 0.5, 0.5);
     this.mesh.material = mat;
-    this.mesh.isPickable = false;
+    this.mesh.isPickable = true;
+    this.mesh.metadata = { type: 'tower', row, col };
 
-    // Range indicator (ground circle)
-    const rangeDisc = BABYLON.MeshBuilder.CreateDisc(`range_${this.mesh.name}`, {
+    // Range indicator
+    this.rangeDisc = BABYLON.MeshBuilder.CreateDisc(`range_${this.mesh.name}`, {
       radius: def.range,
       tessellation: 48,
     }, scene);
-    rangeDisc.rotation.x = Math.PI / 2;
-    rangeDisc.position.copyFrom(worldPos);
-    rangeDisc.position.y = 0.005;
+    this.rangeDisc.rotation.x = Math.PI / 2;
+    this.rangeDisc.position.copyFrom(worldPos);
+    this.rangeDisc.position.y = 0.005;
     const rangeMat = new BABYLON.StandardMaterial(`rangeMat_${this.mesh.name}`, scene);
     rangeMat.diffuseColor = this.color.scale(0.15);
     rangeMat.emissiveColor = this.color.scale(0.05);
     rangeMat.alpha = 0.3;
     rangeMat.specularColor = BABYLON.Color3.Black();
-    rangeDisc.material = rangeMat;
-    rangeDisc.isPickable = false;
+    this.rangeDisc.material = rangeMat;
+    this.rangeDisc.isPickable = false;
+  }
+
+  get sellValue(): number {
+    return Math.floor(this.def.cost * 0.5);
   }
 
   fixedUpdate(dt: number, enemies: EnemyEntity[]): Projectile | null {
@@ -88,6 +94,7 @@ export class TowerEntity {
   }
 
   dispose() {
+    this.rangeDisc.dispose();
     this.mesh.dispose();
   }
 }

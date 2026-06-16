@@ -107,5 +107,11 @@ export class MapEngine {
     if (tile) tile.isPickable = false;
   }
 
+  markBuildable(row: number, col: number) {
+    this.mapDef.buildable[row][col] = true;
+    const tile = this.tileMeshes[row]?.[col];
+    if (tile) tile.isPickable = true;
+  }
+
   getMapDef(): MapDef { return this.mapDef; }
 }
