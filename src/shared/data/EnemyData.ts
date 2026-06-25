@@ -40,4 +40,14 @@ export const ENEMY_DEFS: Record<string, EnemyDef> = {
     reward: 30,
     radius: 0.45,
   },
+  grb: {
+    id: 'grb',
+    name: 'GRB',
+    nameKo: '감마선 폭발',
+    hp: 500,
+    speed: 0.6,
+    armor: 5,
+    reward: 100,
+    radius: 0.55,
+  },
 };

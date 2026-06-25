@@ -36,6 +36,19 @@ export class TowerEngine {
     const enemies = waveEngine.getAliveEnemies();
 
     for (const tower of this.towers) {
+      if (!tower.isDisabled()) {
+        for (const enemy of enemies) {
+          const disableRadius = enemy.getDisableRadius();
+          if (disableRadius === null) continue;
+          const dx = enemy.position.x - tower.mesh.position.x;
+          const dz = enemy.position.z - tower.mesh.position.z;
+          if (dx * dx + dz * dz <= disableRadius * disableRadius) {
+            tower.disable(enemy.getDisableDuration()!);
+            break;
+          }
+        }
+      }
+
       const proj = tower.fixedUpdate(dt, enemies);
       if (proj) this.projectiles.push(proj);
     }

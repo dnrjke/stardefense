@@ -10,11 +10,12 @@ interface SpawnState {
   delay: number;
   timer: number;
   started: boolean;
+  pathIndex: number;
 }
 
 export class WaveEngine {
   private scene: BABYLON.Scene;
-  private waypoints: BABYLON.Vector3[];
+  private paths: BABYLON.Vector3[][];
   private enemies: EnemyEntity[] = [];
   private spawnStates: SpawnState[] = [];
   private active = false;
@@ -24,9 +25,9 @@ export class WaveEngine {
   onEnemyReachedEnd: ((enemy: EnemyEntity) => void) | null = null;
   onWaveCleared: (() => void) | null = null;
 
-  constructor(scene: BABYLON.Scene, waypoints: BABYLON.Vector3[]) {
+  constructor(scene: BABYLON.Scene, paths: BABYLON.Vector3[][]) {
     this.scene = scene;
-    this.waypoints = waypoints;
+    this.paths = paths;
   }
 
   startWave(waveDef: WaveDef) {
@@ -37,6 +38,7 @@ export class WaveEngine {
       delay: s.delay,
       timer: 0,
       started: false,
+      pathIndex: s.pathIndex ?? 0,
     }));
     this.allSpawned = false;
     this.active = true;
@@ -45,7 +47,6 @@ export class WaveEngine {
   fixedUpdate(dt: number) {
     if (!this.active) return;
 
-    // Spawn logic
     let allDone = true;
     for (const ss of this.spawnStates) {
       if (ss.remaining <= 0) continue;
@@ -62,7 +63,8 @@ export class WaveEngine {
         ss.timer -= ss.interval;
         const def = ENEMY_DEFS[ss.enemyId];
         if (def) {
-          const enemy = new EnemyEntity(this.scene, def, this.waypoints);
+          const waypoints = this.paths[ss.pathIndex] ?? this.paths[0];
+          const enemy = new EnemyEntity(this.scene, def, waypoints);
           this.enemies.push(enemy);
         }
         ss.remaining--;
@@ -70,7 +72,6 @@ export class WaveEngine {
     }
     if (allDone) this.allSpawned = true;
 
-    // Update enemies
     for (const enemy of this.enemies) {
       if (!enemy.alive) continue;
       const reachedEnd = enemy.fixedUpdate(dt);
@@ -81,14 +82,12 @@ export class WaveEngine {
       }
     }
 
-    // Check wave cleared
     if (this.allSpawned && this.enemies.every(e => !e.alive)) {
       this.active = false;
       this.onWaveCleared?.();
     }
   }
 
-  /** Update enemy shader visuals each render frame */
   updateVisuals(dt: number) {
     for (const enemy of this.enemies) {
       if (enemy.alive) enemy.updateVisuals(dt);

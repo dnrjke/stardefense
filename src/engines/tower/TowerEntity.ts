@@ -138,6 +138,8 @@ export class TowerEntity {
   private shaderMat: BABYLON.ShaderMaterial;
   private seed: number;
   private timeAccum = 0;
+  private disabledUntil = 0;
+  private disabled = false;
 
   constructor(scene: BABYLON.Scene, def: TowerDef, worldPos: BABYLON.Vector3, row: number, col: number) {
     this.scene = scene;
@@ -201,13 +203,31 @@ export class TowerEntity {
     return Math.floor(this.def.cost * 0.5);
   }
 
-  /** Update shader time uniform — call every frame (not just fixedUpdate) */
+  disable(duration: number) {
+    this.disabledUntil = duration;
+    this.disabled = true;
+    this.shaderMat.setColor3('uBaseColor', this.color.scale(0.3));
+  }
+
+  isDisabled(): boolean {
+    return this.disabled;
+  }
+
   updateVisuals(dt: number) {
     this.timeAccum += dt;
     this.shaderMat.setFloat('uTime', this.timeAccum);
   }
 
   fixedUpdate(dt: number, enemies: EnemyEntity[]): Projectile | null {
+    if (this.disabled) {
+      this.disabledUntil -= dt;
+      if (this.disabledUntil <= 0) {
+        this.disabled = false;
+        this.shaderMat.setColor3('uBaseColor', this.color);
+      }
+      return null;
+    }
+
     this.attackCooldown -= dt;
     if (this.attackCooldown > 0) return null;
 

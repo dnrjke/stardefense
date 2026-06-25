@@ -36,4 +36,16 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     cost: 30,
     projectileSpeed: 10,
   },
+  sirius: {
+    id: 'sirius',
+    name: 'Sirius',
+    nameKo: '시리우스',
+    spectralType: 'A1V',
+    ci: 0.0,
+    damage: 15,
+    attackRate: 1.5,
+    range: 3.5,
+    cost: 80,
+    projectileSpeed: 9,
+  },
 };

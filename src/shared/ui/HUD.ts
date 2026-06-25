@@ -15,6 +15,8 @@ export class HUD {
   onStartWave: (() => void) | null = null;
   onRestart: (() => void) | null = null;
   onCycleSpeed: (() => void) | null = null;
+  onBack: (() => void) | null = null;
+  onContinue: (() => void) | null = null;
 
   constructor(store: GameStore) {
     this.store = store;
@@ -56,6 +58,12 @@ export class HUD {
 
     // Top bar
     this.topBar.innerHTML = '';
+
+    const backBtn = document.createElement('button');
+    backBtn.textContent = 'BACK';
+    backBtn.style.cssText = 'background:#322;color:#a88;border:1px solid #544;padding:4px 10px;cursor:pointer;font-family:monospace;font-size:12px;border-radius:4px;margin-right:12px;';
+    backBtn.onclick = () => this.onBack?.();
+    this.topBar.appendChild(backBtn);
 
     const info = document.createElement('span');
     info.innerHTML = `WAVE ${state.currentWave}/${state.totalWaves} &nbsp; ISM: ${state.ism} &nbsp; BASE HP: ${state.baseHp}/${state.maxBaseHp}`;
@@ -109,20 +117,44 @@ export class HUD {
     this.tutorialOverlay.style.display = 'none';
   }
 
-  showEndScreen(victory: boolean) {
+  showEndScreen(victory: boolean, _mapId?: string) {
     this.endScreen.style.display = 'flex';
-    this.endScreen.innerHTML = `
-      <div style="font-size:32px;margin-bottom:16px;color:${victory ? '#4af' : '#f44'}">
-        ${victory ? 'WAVE CLEAR!' : 'GAME OVER'}
-      </div>
-      <div style="font-size:14px;margin-bottom:24px;color:#aaa">
-        ${victory ? '태양계 외곽 방어 성공. 시리우스 항로가 개방됩니다.' : '기지가 파괴되었습니다.'}
-      </div>
-      <button id="restartBtn" style="background:#335;color:#aaf;border:1px solid #558;padding:10px 24px;cursor:pointer;font-family:monospace;font-size:14px;border-radius:4px;">
-        ${victory ? 'CONTINUE' : 'RETRY'}
-      </button>
-    `;
-    document.getElementById('restartBtn')!.onclick = () => this.onRestart?.();
+    this.endScreen.innerHTML = '';
+
+    const title = document.createElement('div');
+    title.textContent = victory ? 'WAVE CLEAR!' : 'GAME OVER';
+    title.style.cssText = `font-size:32px;margin-bottom:16px;color:${victory ? '#4af' : '#f44'}`;
+    this.endScreen.appendChild(title);
+
+    const desc = document.createElement('div');
+    desc.textContent = victory ? '방어 성공! 다음 항로가 개방됩니다.' : '기지가 파괴되었습니다.';
+    desc.style.cssText = 'font-size:14px;margin-bottom:24px;color:#aaa';
+    this.endScreen.appendChild(desc);
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:16px;';
+
+    if (victory) {
+      const contBtn = document.createElement('button');
+      contBtn.textContent = 'CONTINUE';
+      contBtn.style.cssText = 'background:#335;color:#aaf;border:1px solid #558;padding:10px 24px;cursor:pointer;font-family:monospace;font-size:14px;border-radius:4px;';
+      contBtn.onclick = () => this.onContinue?.();
+      btnRow.appendChild(contBtn);
+    } else {
+      const retryBtn = document.createElement('button');
+      retryBtn.textContent = 'RETRY';
+      retryBtn.style.cssText = 'background:#335;color:#aaf;border:1px solid #558;padding:10px 24px;cursor:pointer;font-family:monospace;font-size:14px;border-radius:4px;';
+      retryBtn.onclick = () => this.onRestart?.();
+      btnRow.appendChild(retryBtn);
+
+      const backBtn = document.createElement('button');
+      backBtn.textContent = 'MAP SELECT';
+      backBtn.style.cssText = 'background:#322;color:#a88;border:1px solid #544;padding:10px 24px;cursor:pointer;font-family:monospace;font-size:14px;border-radius:4px;';
+      backBtn.onclick = () => this.onBack?.();
+      btnRow.appendChild(backBtn);
+    }
+
+    this.endScreen.appendChild(btnRow);
   }
 
   hideEndScreen() {

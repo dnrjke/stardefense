@@ -6,22 +6,30 @@ export class MapEngine {
   private scene: BABYLON.Scene;
   private tileMeshes: BABYLON.Mesh[][] = [];
   private pathMeshes: BABYLON.Mesh[] = [];
-  private pathPoints: BABYLON.Vector3[] = [];
+  private allPaths: BABYLON.Vector3[][] = [];
 
   constructor(scene: BABYLON.Scene, mapDef: MapDef) {
     this.scene = scene;
     this.mapDef = mapDef;
-    this.buildPathPoints();
+    this.buildAllPaths();
     this.buildVisuals();
   }
 
-  private buildPathPoints() {
-    for (const wp of this.mapDef.waypoints) {
-      this.pathPoints.push(new BABYLON.Vector3(
-        wp.x - this.mapDef.cols / 2 + 0.5,
-        0.01,
-        -(wp.y - this.mapDef.rows / 2 + 0.5),
-      ));
+  private vec2ToWorld(wp: Vec2): BABYLON.Vector3 {
+    return new BABYLON.Vector3(
+      wp.x - this.mapDef.cols / 2 + 0.5,
+      0.01,
+      -(wp.y - this.mapDef.rows / 2 + 0.5),
+    );
+  }
+
+  private buildAllPaths() {
+    if (this.mapDef.paths && this.mapDef.paths.length > 0) {
+      for (const path of this.mapDef.paths) {
+        this.allPaths.push(path.map(wp => this.vec2ToWorld(wp)));
+      }
+    } else {
+      this.allPaths.push(this.mapDef.waypoints.map(wp => this.vec2ToWorld(wp)));
     }
   }
 
@@ -57,37 +65,60 @@ export class MapEngine {
       }
     }
 
-    // Path line
-    const linePoints = this.pathPoints.map(p => new BABYLON.Vector3(p.x, 0.02, p.z));
-    const pathLine = BABYLON.MeshBuilder.CreateLines('pathLine', {
-      points: linePoints,
-    }, this.scene);
-    pathLine.color = new BABYLON.Color3(0.3, 0.25, 0.5);
-    this.pathMeshes.push(pathLine);
+    const pathColors = [
+      new BABYLON.Color3(0.3, 0.25, 0.5),
+      new BABYLON.Color3(0.5, 0.25, 0.3),
+      new BABYLON.Color3(0.25, 0.5, 0.3),
+    ];
 
-    // Spawn marker
-    const spawn = BABYLON.MeshBuilder.CreateSphere('spawnMarker', { diameter: 0.4 }, this.scene);
-    spawn.position.copyFrom(this.pathPoints[0]);
-    spawn.position.y = 0.2;
-    const spawnMat = new BABYLON.StandardMaterial('spawnMat', this.scene);
-    spawnMat.diffuseColor = new BABYLON.Color3(1, 0.3, 0.3);
-    spawnMat.emissiveColor = new BABYLON.Color3(0.5, 0.1, 0.1);
-    spawn.material = spawnMat;
-    spawn.isPickable = false;
+    for (let i = 0; i < this.allPaths.length; i++) {
+      const points = this.allPaths[i];
+      const linePoints = points.map(p => new BABYLON.Vector3(p.x, 0.02, p.z));
+      const pathLine = BABYLON.MeshBuilder.CreateLines(`pathLine_${i}`, {
+        points: linePoints,
+      }, this.scene);
+      pathLine.color = pathColors[i % pathColors.length];
+      this.pathMeshes.push(pathLine);
+    }
 
-    // Base marker
-    const base = BABYLON.MeshBuilder.CreateSphere('baseMarker', { diameter: 0.5 }, this.scene);
-    base.position.copyFrom(this.pathPoints[this.pathPoints.length - 1]);
-    base.position.y = 0.25;
-    const baseMat = new BABYLON.StandardMaterial('baseMat', this.scene);
-    baseMat.diffuseColor = new BABYLON.Color3(0.3, 0.5, 1);
-    baseMat.emissiveColor = new BABYLON.Color3(0.1, 0.2, 0.5);
-    base.material = baseMat;
-    base.isPickable = false;
+    const spawnPositions = new Set<string>();
+    let basePos: BABYLON.Vector3 | null = null;
+
+    for (const path of this.allPaths) {
+      const spawnKey = `${path[0].x},${path[0].z}`;
+      if (!spawnPositions.has(spawnKey)) {
+        spawnPositions.add(spawnKey);
+        const spawn = BABYLON.MeshBuilder.CreateSphere(`spawnMarker_${spawnPositions.size}`, { diameter: 0.4 }, this.scene);
+        spawn.position.copyFrom(path[0]);
+        spawn.position.y = 0.2;
+        const spawnMat = new BABYLON.StandardMaterial(`spawnMat_${spawnPositions.size}`, this.scene);
+        spawnMat.diffuseColor = new BABYLON.Color3(1, 0.3, 0.3);
+        spawnMat.emissiveColor = new BABYLON.Color3(0.5, 0.1, 0.1);
+        spawn.material = spawnMat;
+        spawn.isPickable = false;
+      }
+      basePos = path[path.length - 1];
+    }
+
+    if (basePos) {
+      const base = BABYLON.MeshBuilder.CreateSphere('baseMarker', { diameter: 0.5 }, this.scene);
+      base.position.copyFrom(basePos);
+      base.position.y = 0.25;
+      const baseMat = new BABYLON.StandardMaterial('baseMat', this.scene);
+      baseMat.diffuseColor = new BABYLON.Color3(0.3, 0.5, 1);
+      baseMat.emissiveColor = new BABYLON.Color3(0.1, 0.2, 0.5);
+      base.material = baseMat;
+      base.isPickable = false;
+    }
   }
 
-  getWaypoints(): BABYLON.Vector3[] {
-    return this.pathPoints;
+  getWaypoints(pathIndex?: number): BABYLON.Vector3[] {
+    const idx = pathIndex ?? 0;
+    return this.allPaths[idx] ?? this.allPaths[0];
+  }
+
+  get pathCount(): number {
+    return this.allPaths.length;
   }
 
   tileToWorld(row: number, col: number): BABYLON.Vector3 {
