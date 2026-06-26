@@ -59,7 +59,7 @@ export class MapEngine {
         tile.position.z = -(r - halfR + 0.5);
         tile.position.y = 0;
         tile.material = buildable[r][c] ? buildableMat : pathMat;
-        tile.isPickable = buildable[r][c];
+        tile.isPickable = true;
         tile.metadata = { type: 'tile', row: r, col: c };
         this.tileMeshes[r][c] = tile;
       }

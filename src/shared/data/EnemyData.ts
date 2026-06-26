@@ -7,6 +7,9 @@ export interface EnemyDef {
   armor: number;       // flat damage reduction
   reward: number;      // ISM on kill
   radius: number;      // visual/collision radius
+  stealth?: boolean;
+  splits?: boolean;
+  ignoresNebula?: boolean;
 }
 
 export const ENEMY_DEFS: Record<string, EnemyDef> = {
@@ -49,5 +52,39 @@ export const ENEMY_DEFS: Record<string, EnemyDef> = {
     armor: 5,
     reward: 100,
     radius: 0.55,
+  },
+  dark_matter: {
+    id: 'dark_matter',
+    name: 'Dark Matter',
+    nameKo: '암흑물질',
+    hp: 60,
+    speed: 1.5,
+    armor: 0,
+    reward: 25,
+    radius: 0.3,
+    stealth: true,
+  },
+  antimatter_storm: {
+    id: 'antimatter_storm',
+    name: 'Antimatter Storm',
+    nameKo: '반물질 폭풍',
+    hp: 800,
+    speed: 0.5,
+    armor: 8,
+    reward: 200,
+    radius: 0.6,
+    splits: true,
+    ignoresNebula: true,
+  },
+  antimatter_storm_split: {
+    id: 'antimatter_storm_split',
+    name: 'Antimatter Storm Fragment',
+    nameKo: '반물질 파편',
+    hp: 200,
+    speed: 0.7,
+    armor: 4,
+    reward: 50,
+    radius: 0.4,
+    ignoresNebula: true,
   },
 };

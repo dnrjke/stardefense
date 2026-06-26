@@ -252,6 +252,133 @@ void main() {
 }
 `;
 
+const _DARK_MATTER_VERT = /* glsl */`
+precision highp float;
+attribute vec3 position;
+attribute vec3 normal;
+uniform mat4 worldViewProjection;
+uniform mat4 world;
+uniform vec3 cameraPosition;
+varying vec3 vLocalPos;
+varying vec3 vWorldNorm;
+varying vec3 vViewDir;
+void main() {
+    gl_Position = worldViewProjection * vec4(position, 1.0);
+    vLocalPos   = position;
+    vWorldNorm  = normalize((world * vec4(normal, 0.0)).xyz);
+    vec3 wPos   = (world * vec4(position, 1.0)).xyz;
+    vViewDir    = normalize(cameraPosition - wPos);
+}
+`;
+
+const _DARK_MATTER_FRAG = /* glsl */`
+precision highp float;
+varying vec3 vLocalPos;
+varying vec3 vWorldNorm;
+varying vec3 vViewDir;
+uniform float uTime;
+
+float hash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.3))) * 43758.5453123); }
+float noise(vec3 p) {
+    vec3 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+        mix(mix(hash(i), hash(i+vec3(1,0,0)), f.x),
+            mix(hash(i+vec3(0,1,0)), hash(i+vec3(1,1,0)), f.x), f.y),
+        mix(mix(hash(i+vec3(0,0,1)), hash(i+vec3(1,0,1)), f.x),
+            mix(hash(i+vec3(0,1,1)), hash(i+vec3(1,1,1)), f.x), f.y),
+        f.z);
+}
+float fbm(vec3 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 4; i++) { v += a * noise(p); p = p * 2.1 + vec3(3.7, 6.8, 1.3); a *= 0.5; }
+    return v;
+}
+void main() {
+    vec3 n = normalize(vLocalPos);
+    vec3 N = normalize(vWorldNorm);
+    vec3 V = normalize(vViewDir);
+    float NdotV = max(dot(N, V), 0.0);
+    float distort = fbm(n * 5.0 + uTime * 0.4);
+    vec3 warpedN = normalize(n + vec3(distort * 0.3, distort * 0.2, distort * 0.3));
+    float f2 = fbm(warpedN * 8.0 - uTime * 0.3);
+    vec3 darkColor = mix(vec3(0.05, 0.02, 0.12), vec3(0.15, 0.05, 0.25), f2);
+    float fresnel = pow(1.0 - NdotV, 3.0);
+    vec3 rimGlow = vec3(0.3, 0.1, 0.6) * fresnel * 0.8;
+    float shimmer = 0.4 + 0.2 * sin(uTime * 3.0 + distort * 6.0);
+    float limb = mix(0.3, 1.0, NdotV);
+    vec3 emissive = vec3(0.08, 0.03, 0.15) * (0.8 + 0.2 * sin(uTime * 2.0));
+    gl_FragColor = vec4(darkColor * limb + rimGlow + emissive, shimmer);
+}
+`;
+
+const _ANTIMATTER_VERT = /* glsl */`
+precision highp float;
+attribute vec3 position;
+attribute vec3 normal;
+uniform mat4 worldViewProjection;
+uniform mat4 world;
+uniform vec3 cameraPosition;
+varying vec3 vLocalPos;
+varying vec3 vWorldNorm;
+varying vec3 vViewDir;
+void main() {
+    gl_Position = worldViewProjection * vec4(position, 1.0);
+    vLocalPos   = position;
+    vWorldNorm  = normalize((world * vec4(normal, 0.0)).xyz);
+    vec3 wPos   = (world * vec4(position, 1.0)).xyz;
+    vViewDir    = normalize(cameraPosition - wPos);
+}
+`;
+
+const _ANTIMATTER_FRAG = /* glsl */`
+precision highp float;
+varying vec3 vLocalPos;
+varying vec3 vWorldNorm;
+varying vec3 vViewDir;
+uniform float uTime;
+
+float hash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.3))) * 43758.5453123); }
+float noise(vec3 p) {
+    vec3 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+        mix(mix(hash(i), hash(i+vec3(1,0,0)), f.x),
+            mix(hash(i+vec3(0,1,0)), hash(i+vec3(1,1,0)), f.x), f.y),
+        mix(mix(hash(i+vec3(0,0,1)), hash(i+vec3(1,0,1)), f.x),
+            mix(hash(i+vec3(0,1,1)), hash(i+vec3(1,1,1)), f.x), f.y),
+        f.z);
+}
+float fbm(vec3 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 5; i++) { v += a * noise(p); p = p * 2.1 + vec3(3.7, 6.8, 1.3); a *= 0.5; }
+    return v;
+}
+void main() {
+    vec3 n = normalize(vLocalPos);
+    vec3 N = normalize(vWorldNorm);
+    vec3 V = normalize(vViewDir);
+    float NdotV = max(dot(N, V), 0.0);
+    float pulse1 = 0.6 + 0.4 * sin(uTime * 4.0);
+    float pulse2 = 0.7 + 0.3 * sin(uTime * 7.0 + 1.5);
+    float f1 = fbm(n * 6.0 + uTime * 1.2);
+    float f2 = fbm(n * 10.0 - uTime * 0.8 + vec3(7.0, 3.0, 5.0));
+    float f3 = fbm(n * 4.0 + vec3(uTime * 0.6, -uTime * 0.9, uTime * 0.3));
+    float swirl = smoothstep(0.35, 0.55, f1) * 0.6 + smoothstep(0.4, 0.6, f2) * 0.4;
+    vec3 purple = vec3(0.6, 0.1, 0.8);
+    vec3 magenta = vec3(0.9, 0.2, 0.5);
+    vec3 dark = vec3(0.1, 0.0, 0.15);
+    vec3 stormColor = mix(dark, mix(purple, magenta, f3), swirl * pulse1);
+    float fresnel = pow(1.0 - NdotV, 2.5);
+    vec3 rimGlow = vec3(0.7, 0.2, 0.9) * fresnel * 1.0 * pulse2;
+    float energyLines = smoothstep(0.45, 0.55, fbm(n * 12.0 + uTime * 2.0)) * 0.5;
+    vec3 energy = vec3(1.0, 0.4, 1.0) * energyLines;
+    float limb = mix(0.4, 1.0, NdotV);
+    vec3 emissive = vec3(0.2, 0.05, 0.3) * pulse1;
+    gl_FragColor = vec4(stormColor * limb + rimGlow + energy + emissive, 1.0);
+}
+`;
+
 // ── Register enemy shaders ──
 if (!BABYLON.Effect.ShadersStore['asteroidVertexShader']) {
   BABYLON.Effect.ShadersStore['asteroidVertexShader']   = _ASTEROID_VERT;
@@ -262,6 +389,10 @@ if (!BABYLON.Effect.ShadersStore['asteroidVertexShader']) {
   BABYLON.Effect.ShadersStore['rogueFragmentShader']    = _ROGUE_FRAG;
   BABYLON.Effect.ShadersStore['grbVertexShader']        = _GRB_VERT;
   BABYLON.Effect.ShadersStore['grbFragmentShader']      = _GRB_FRAG;
+  BABYLON.Effect.ShadersStore['darkMatterVertexShader']   = _DARK_MATTER_VERT;
+  BABYLON.Effect.ShadersStore['darkMatterFragmentShader'] = _DARK_MATTER_FRAG;
+  BABYLON.Effect.ShadersStore['antimatterVertexShader']   = _ANTIMATTER_VERT;
+  BABYLON.Effect.ShadersStore['antimatterFragmentShader'] = _ANTIMATTER_FRAG;
 }
 
 let _enemySeedCounter = 0;
@@ -271,6 +402,7 @@ export class EnemyEntity {
   hp: number;
   alive = true;
   mesh: BABYLON.Mesh;
+  hasSplit = false;
 
   private waypoints: BABYLON.Vector3[];
   private waypointIndex = 0;
@@ -285,7 +417,7 @@ export class EnemyEntity {
   private cometTail: BABYLON.Mesh | null = null;
   private cometTailMat: BABYLON.StandardMaterial | null = null;
 
-  constructor(scene: BABYLON.Scene, def: EnemyDef, waypoints: BABYLON.Vector3[]) {
+  constructor(scene: BABYLON.Scene, def: EnemyDef, waypoints: BABYLON.Vector3[], startWaypoint = 0) {
     this.def = def;
     this.hp = def.hp;
     this.speed = def.speed;
@@ -296,7 +428,7 @@ export class EnemyEntity {
       diameter: def.radius * 2,
       segments: 16,
     }, scene);
-    this.mesh.position.copyFrom(waypoints[0]);
+    this.mesh.position.copyFrom(waypoints[startWaypoint] ?? waypoints[0]);
     this.mesh.position.y = 0.3;
 
     if (def.id === 'asteroid') {
@@ -347,6 +479,23 @@ export class EnemyEntity {
       );
       this.shaderMat.setFloat('uTime', 0);
       this.mesh.material = this.shaderMat;
+    } else if (def.id === 'dark_matter') {
+      this.shaderMat = new BABYLON.ShaderMaterial(`darkMatterMat_${this.mesh.name}`, scene,
+        { vertex: 'darkMatter', fragment: 'darkMatter' },
+        { attributes: ['position', 'normal'], uniforms: ['worldViewProjection', 'world', 'cameraPosition', 'uTime'] },
+      );
+      this.shaderMat.setFloat('uTime', 0);
+      this.shaderMat.alpha = 0.4;
+      this.shaderMat.backFaceCulling = false;
+      this.mesh.material = this.shaderMat;
+      this.mesh.hasVertexAlpha = true;
+    } else if (def.id === 'antimatter_storm' || def.id === 'antimatter_storm_split') {
+      this.shaderMat = new BABYLON.ShaderMaterial(`antimatterMat_${this.mesh.name}`, scene,
+        { vertex: 'antimatter', fragment: 'antimatter' },
+        { attributes: ['position', 'normal'], uniforms: ['worldViewProjection', 'world', 'cameraPosition', 'uTime'] },
+      );
+      this.shaderMat.setFloat('uTime', 0);
+      this.mesh.material = this.shaderMat;
     }
     this.mesh.isPickable = false;
 
@@ -380,12 +529,19 @@ export class EnemyEntity {
     this.hpBar.material = fgMat;
     this.hpBar.isPickable = false;
 
-    this.prevPos = waypoints[0].clone();
-    this.nextPos = waypoints[0].clone();
-    this.waypointIndex = 1;
+    const startIdx = startWaypoint || 0;
+    this.prevPos = (waypoints[startIdx] ?? waypoints[0]).clone();
+    this.nextPos = (waypoints[startIdx] ?? waypoints[0]).clone();
+    this.waypointIndex = Math.max(startIdx + 1, 1);
   }
 
   get position(): BABYLON.Vector3 { return this.mesh.position; }
+
+  isStealth(): boolean { return this.def.stealth === true; }
+
+  getWaypointIndex(): number { return this.waypointIndex; }
+
+  getWaypoints(): BABYLON.Vector3[] { return this.waypoints; }
 
   getDisableRadius(): number | null {
     return this.def.id === 'grb' ? 2.5 : null;
@@ -393,6 +549,10 @@ export class EnemyEntity {
 
   getDisableDuration(): number | null {
     return this.def.id === 'grb' ? 3.0 : null;
+  }
+
+  shouldSplit(): boolean {
+    return this.def.splits === true && !this.hasSplit && this.hp <= this.def.hp * 0.5 && this.hp > 0;
   }
 
   updateVisuals(dt: number) {
@@ -459,6 +619,13 @@ export class EnemyEntity {
       mat.diffuseColor.g = ratio > 0.5 ? 0.9 : ratio * 1.8;
       mat.emissiveColor.r = mat.diffuseColor.r * 0.4;
       mat.emissiveColor.g = mat.diffuseColor.g * 0.4;
+    }
+
+    if (this.shouldSplit()) {
+      this.hasSplit = true;
+      this.alive = false;
+      this.dispose();
+      return true;
     }
 
     if (this.hp <= 0) {

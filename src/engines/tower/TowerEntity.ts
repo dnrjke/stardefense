@@ -125,10 +125,14 @@ if (!BABYLON.Effect.ShadersStore['towerStarVertexShader']) {
 let _towerSeedCounter = 0;
 
 export class TowerEntity {
-  readonly def: TowerDef;
+  def: TowerDef;
   readonly row: number;
   readonly col: number;
   mesh: BABYLON.Mesh;
+  level = 1;
+  evolvedFrom?: string;
+  wavesAlive = 0;
+  readyToExplode = false;
 
   private scene: BABYLON.Scene;
   private attackCooldown = 0;
@@ -140,6 +144,7 @@ export class TowerEntity {
   private timeAccum = 0;
   private disabledUntil = 0;
   private disabled = false;
+  private pulsarTimer = 0;
 
   constructor(scene: BABYLON.Scene, def: TowerDef, worldPos: BABYLON.Vector3, row: number, col: number) {
     this.scene = scene;
@@ -152,8 +157,9 @@ export class TowerEntity {
     const [r, g, b] = ciToRgb(def.ci);
     this.color = new BABYLON.Color3(r, g, b);
 
+    const diameter = 0.6;
     this.mesh = BABYLON.MeshBuilder.CreateSphere(`tower_${def.id}_${row}_${col}`, {
-      diameter: 0.6,
+      diameter,
       segments: 24,
     }, scene);
     this.mesh.position.copyFrom(worldPos);
@@ -203,6 +209,66 @@ export class TowerEntity {
     return Math.floor(this.def.cost * 0.5);
   }
 
+  get totalInvested(): number {
+    return this.def.cost;
+  }
+
+  onWaveCompleted() {
+    if (this.def.specialType !== 'betelgeuse') return;
+    this.wavesAlive++;
+    if (this.def.wavesUntilExplosion && this.wavesAlive >= this.def.wavesUntilExplosion) {
+      this.readyToExplode = true;
+    }
+  }
+
+  evolve(newDef: TowerDef, newLevel: number) {
+    this.evolvedFrom = this.def.id;
+    this.def = newDef;
+    this.level = newLevel;
+    this.rangeSq = newDef.range * newDef.range;
+
+    const [r, g, b] = ciToRgb(newDef.ci);
+    this.color = new BABYLON.Color3(r, g, b);
+    this.shaderMat.setColor3('uBaseColor', this.color);
+
+    const newDiameter = newLevel === 2 ? 0.7 : newLevel >= 3 ? 0.8 : 0.6;
+    this.mesh.dispose();
+    this.mesh = BABYLON.MeshBuilder.CreateSphere(`tower_${newDef.id}_${this.row}_${this.col}`, {
+      diameter: newDiameter,
+      segments: 24,
+    }, this.scene);
+    this.mesh.position.copyFrom(this.rangeDisc.position);
+    this.mesh.position.y = 0.35;
+    this.mesh.material = this.shaderMat;
+    this.mesh.isPickable = true;
+    this.mesh.metadata = { type: 'tower', row: this.row, col: this.col };
+
+    this.rangeDisc.dispose();
+    this.rangeDisc = BABYLON.MeshBuilder.CreateDisc(`range_${this.mesh.name}`, {
+      radius: newDef.range,
+      tessellation: 48,
+    }, this.scene);
+    this.rangeDisc.rotation.x = Math.PI / 2;
+    this.rangeDisc.position.copyFrom(this.mesh.position);
+    this.rangeDisc.position.y = 0.005;
+    const rangeMat = new BABYLON.StandardMaterial(`rangeMat_${this.mesh.name}`, this.scene);
+    rangeMat.diffuseColor = this.color.scale(0.15);
+    rangeMat.emissiveColor = this.color.scale(0.05);
+    rangeMat.alpha = 0.3;
+    rangeMat.specularColor = BABYLON.Color3.Black();
+    this.rangeDisc.material = rangeMat;
+    this.rangeDisc.isPickable = false;
+
+    if (newDef.specialType === 'black_hole') {
+      this.shaderMat.setColor3('uBaseColor', new BABYLON.Color3(0.1, 0.02, 0.15));
+    }
+
+    this.wavesAlive = 0;
+    this.readyToExplode = false;
+    this.pulsarTimer = 0;
+    this.attackCooldown = 0;
+  }
+
   disable(duration: number) {
     this.disabledUntil = duration;
     this.disabled = true;
@@ -218,6 +284,16 @@ export class TowerEntity {
     this.shaderMat.setFloat('uTime', this.timeAccum);
   }
 
+  advancePulsarTimer(dt: number): boolean {
+    if (this.def.specialType !== 'pulsar') return false;
+    this.pulsarTimer += dt;
+    if (this.pulsarTimer >= (this.def.pulsarInterval ?? 2.0)) {
+      this.pulsarTimer = 0;
+      return true;
+    }
+    return false;
+  }
+
   fixedUpdate(dt: number, enemies: EnemyEntity[]): Projectile | null {
     if (this.disabled) {
       this.disabledUntil -= dt;
@@ -228,8 +304,12 @@ export class TowerEntity {
       return null;
     }
 
+    if (this.def.noAttack) return null;
+
     this.attackCooldown -= dt;
     if (this.attackCooldown > 0) return null;
+
+    if (this.def.attackRate <= 0) return null;
 
     let closest: EnemyEntity | null = null;
     let closestDistSq = Infinity;

@@ -3,16 +3,19 @@ import { FixedTimestep } from '@/core/FixedTimestep';
 import { MapEngine } from '@/engines/map/MapEngine';
 import { TowerEngine } from '@/engines/tower/TowerEngine';
 import { WaveEngine } from '@/engines/wave/WaveEngine';
+import { NebulaEngine } from '@/engines/nebula/NebulaEngine';
 import { HUD } from '@/shared/ui/HUD';
+import { NEBULA_DEFS } from '@/shared/data/NebulaData';
 import { RadialMenu } from '@/shared/ui/RadialMenu';
 import { createGameStore } from '@/app/store/GameStore';
 import type { GameStore } from '@/app/store/GameStore';
 import { createCampaignStore } from '@/app/store/CampaignStore';
 import type { CampaignStore } from '@/app/store/CampaignStore';
 import { MapSelectScreen } from '@/shared/ui/MapSelectScreen';
-import { createMap1_1, createMap1_2, createMap1_3, createMap1_B } from '@/shared/data/MapData';
-import { MAP_1_1_WAVES, MAP_1_2_WAVES, MAP_1_3_WAVES, MAP_1_B_WAVES } from '@/shared/data/WaveData';
+import { createMap1_1, createMap1_2, createMap1_3, createMap1_B, createMap2_1, createMap2_2, createMap2_3, createMap2_B } from '@/shared/data/MapData';
+import { MAP_1_1_WAVES, MAP_1_2_WAVES, MAP_1_3_WAVES, MAP_1_B_WAVES, MAP_2_1_WAVES, MAP_2_2_WAVES, MAP_2_3_WAVES, MAP_2_B_WAVES } from '@/shared/data/WaveData';
 import { TOWER_DEFS } from '@/shared/data/TowerData';
+import { getEvolutions } from '@/engines/tower/EvolutionSystem';
 import type { MapDef } from '@/shared/data/MapData';
 import type { WaveDef } from '@/shared/data/WaveData';
 import type { TowerEntity } from '@/engines/tower/TowerEntity';
@@ -30,6 +33,7 @@ interface MapConfig {
   createMap: () => MapDef;
   waves: WaveDef[];
   availableTowers: string[];
+  availableNebulae?: string[];
   unlockOnClear?: string;
 }
 
@@ -56,6 +60,32 @@ const MAP_CONFIGS: Record<string, MapConfig> = {
     createMap: createMap1_B,
     waves: MAP_1_B_WAVES,
     availableTowers: ['sol', 'proxima', 'sirius'],
+    unlockOnClear: 'map_2_1',
+  },
+  map_2_1: {
+    createMap: createMap2_1,
+    waves: MAP_2_1_WAVES,
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel'],
+    unlockOnClear: 'map_2_2',
+  },
+  map_2_2: {
+    createMap: createMap2_2,
+    waves: MAP_2_2_WAVES,
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse'],
+    unlockOnClear: 'map_2_3',
+  },
+  map_2_3: {
+    createMap: createMap2_3,
+    waves: MAP_2_3_WAVES,
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse'],
+    availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
+    unlockOnClear: 'map_2_b',
+  },
+  map_2_b: {
+    createMap: createMap2_B,
+    waves: MAP_2_B_WAVES,
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse'],
+    availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
   },
 };
 
@@ -79,6 +109,7 @@ export class FlowController {
   private mapEngine: MapEngine | null = null;
   private towerEngine: TowerEngine | null = null;
   private waveEngine: WaveEngine | null = null;
+  private nebulaEngine: NebulaEngine | null = null;
   private gameStore: GameStore | null = null;
   private hud: HUD | null = null;
   private radialMenu: RadialMenu | null = null;
@@ -146,9 +177,15 @@ export class FlowController {
       paths.push(this.mapEngine.getWaypoints(i));
     }
 
+    const camDist = mapDef.cameraDistance ?? 16;
+    this.camera.radius = camDist;
+    this.camera.lowerRadiusLimit = camDist;
+    this.camera.upperRadiusLimit = camDist;
+
     // Create engines
     this.waveEngine = new WaveEngine(this.scene, paths);
     this.towerEngine = new TowerEngine(this.scene, this.mapEngine);
+    this.nebulaEngine = new NebulaEngine(this.scene, this.mapEngine);
 
     // Store
     this.gameStore = createGameStore(config.waves.length);
@@ -163,6 +200,7 @@ export class FlowController {
 
     // HUD
     this.hud = new HUD(store);
+    this.hud.availableNebulae = config.availableNebulae ?? [];
     this.radialMenu = new RadialMenu();
     this.fixedStep = new FixedTimestep();
 
@@ -173,6 +211,16 @@ export class FlowController {
         const refund = this.towerEngine!.sellTower(this.selectedTower);
         if (refund > 0) store.getState().addIsm(refund);
         this.hud!.render();
+      } else if (itemId.startsWith('evo_')) {
+        const evoId = itemId.slice(4);
+        const evoDef = getEvolutions(this.selectedTower.def.id);
+        if (evoDef) {
+          const path = evoDef.paths.find(p => p.targetId === evoId);
+          if (path && store.getState().spendIsm(path.cost)) {
+            this.towerEngine!.evolveTower(this.selectedTower, evoId);
+          }
+        }
+        this.hud!.render();
       }
       this.selectedTower = null;
     };
@@ -181,9 +229,27 @@ export class FlowController {
       this.selectedTower = null;
     };
 
+    // Wire betelgeuse explosion
+    this.towerEngine.onBetelgeuseExplode = (tower) => {
+      const enemies = this.waveEngine!.getAliveEnemies();
+      const explosionRange = 3;
+      const explosionRangeSq = explosionRange * explosionRange;
+      const explosionDamage = 100;
+      for (const enemy of enemies) {
+        if (!enemy.alive) continue;
+        const dx = enemy.position.x - tower.mesh.position.x;
+        const dz = enemy.position.z - tower.mesh.position.z;
+        if (dx * dx + dz * dz <= explosionRangeSq) {
+          this.waveEngine!.killEnemy(enemy, explosionDamage);
+        }
+      }
+    };
+
     // Wire game logic
     this.towerEngine.onEnemyHit = (enemy, damage) => {
-      const killed = this.waveEngine!.killEnemy(enemy, damage);
+      const armorReduction = this.nebulaEngine!.getEnemyArmorReduction(enemy.position);
+      const adjustedDamage = damage + armorReduction;
+      const killed = this.waveEngine!.killEnemy(enemy, adjustedDamage);
       if (killed) {
         store.getState().addIsm(enemy.def.reward);
       }
@@ -198,6 +264,10 @@ export class FlowController {
       const waveDef = config.waves[state.currentWave - 1];
       if (waveDef) state.addIsm(waveDef.reward);
       if (waveDef) this.hud!.showWaveBanner(state.currentWave, waveDef.reward);
+
+      for (const tower of this.towerEngine!.getTowers()) {
+        tower.onWaveCompleted();
+      }
 
       // Proxima unlock on map_1_1 wave 2 clear
       if (mapId === 'map_1_1' && state.currentWave === 2) {
@@ -271,14 +341,39 @@ export class FlowController {
         this.hud!.render();
 
         const screenPos = this.radialMenu!.worldToScreen(tower.mesh.position, this.scene, this.engine);
-        this.radialMenu!.show(screenPos.x, screenPos.y, [
+        const menuItems: import('@/shared/ui/RadialMenu').RadialMenuItem[] = [
           { id: 'sell', label: `철거\n+${tower.sellValue}`, color: '#f66' },
-          { id: 'upgrade', label: '강화', color: '#6af', disabled: true },
-        ]);
+        ];
+        const evo = getEvolutions(tower.def.id);
+        if (evo) {
+          for (const path of evo.paths) {
+            const canAfford = store.getState().ism >= path.cost;
+            menuItems.push({
+              id: `evo_${path.targetId}`,
+              label: `${path.nameKo}\n${path.cost}`,
+              color: '#6f6',
+              disabled: !canAfford,
+            });
+          }
+        }
+        this.radialMenu!.show(screenPos.x, screenPos.y, menuItems);
         return;
       }
 
       if (meta.type === 'tile') {
+        const nebulaId = this.hud!.getSelectedNebulaId();
+        if (nebulaId) {
+          const nebDef = NEBULA_DEFS[nebulaId];
+          if (!nebDef) return;
+          if (!store.getState().spendIsm(nebDef.cost)) return;
+          const placed = this.nebulaEngine!.placeNebula(nebulaId, meta.row, meta.col);
+          if (!placed) {
+            store.getState().addIsm(nebDef.cost);
+          }
+          this.hud!.render();
+          return;
+        }
+
         const towerId = this.hud!.getSelectedTowerId();
         if (!towerId) return;
 
@@ -340,6 +435,7 @@ export class FlowController {
 
     this.towerEngine?.clear();
     this.waveEngine?.clear();
+    this.nebulaEngine?.dispose();
     this.hud?.dispose();
     this.radialMenu?.dispose();
 
@@ -364,6 +460,7 @@ export class FlowController {
     this.mapEngine = null;
     this.towerEngine = null;
     this.waveEngine = null;
+    this.nebulaEngine = null;
     this.gameStore = null;
     this.hud = null;
     this.radialMenu = null;
@@ -476,6 +573,10 @@ export class FlowController {
       if (phase === 'wave') {
         this.waveEngine!.fixedUpdate(this.fixedStep!.fixedDt);
         this.towerEngine!.fixedUpdate(this.fixedStep!.fixedDt, this.waveEngine!);
+        if (this.nebulaEngine) {
+          const enemies = this.waveEngine!.getAliveEnemies();
+          this.nebulaEngine.applyDotDamage(enemies, this.fixedStep!.fixedDt);
+        }
       }
     });
 
@@ -486,6 +587,7 @@ export class FlowController {
 
     this.towerEngine.updateVisuals(dtSec);
     this.waveEngine.updateVisuals(dtSec);
+    this.nebulaEngine?.updateVisuals(dtSec);
 
     this._starTime += dtSec;
     this.starfieldSPS.setParticles();

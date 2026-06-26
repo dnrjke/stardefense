@@ -105,11 +105,29 @@ export class WaveEngine {
   }
 
   killEnemy(enemy: EnemyEntity, damage: number): boolean {
+    const wasSplitter = enemy.def.splits === true && !enemy.hasSplit;
     const killed = enemy.takeDamage(damage);
     if (killed) {
+      if (wasSplitter && enemy.hasSplit) {
+        this.spawnSplitCopies(enemy);
+      }
       this.onEnemyKilled?.(enemy);
     }
     return killed;
+  }
+
+  private spawnSplitCopies(parent: EnemyEntity) {
+    const splitDef = ENEMY_DEFS['antimatter_storm_split'];
+    if (!splitDef) return;
+    const waypoints = parent.getWaypoints();
+    const wpIndex = parent.getWaypointIndex();
+    const pos = parent.position.clone();
+    for (let i = 0; i < 2; i++) {
+      const offset = (i === 0 ? -0.3 : 0.3);
+      const child = new EnemyEntity(this.scene, splitDef, waypoints, wpIndex);
+      child.mesh.position.set(pos.x + offset, pos.y, pos.z + offset);
+      this.enemies.push(child);
+    }
   }
 
   isActive(): boolean { return this.active; }

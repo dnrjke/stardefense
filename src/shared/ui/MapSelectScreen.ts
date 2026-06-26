@@ -5,6 +5,10 @@ const ACT_TITLES: Record<number, { title: string; subtitle: string }> = {
     title: 'ACT 1 — 태양 근방',
     subtitle: '가장 가까운 별들이 꺼지기 시작한다',
   },
+  2: {
+    title: 'ACT 2 — 겨울 대삼각',
+    subtitle: '오리온 팔의 밝은 별들이 차례로 위협받는다',
+  },
 };
 
 export class MapSelectScreen {
@@ -43,8 +47,6 @@ export class MapSelectScreen {
 
   private render() {
     const state = this.store.getState();
-    const actMaps = state.getActMaps(1);
-    const act = ACT_TITLES[1];
     const selected = state.currentMapId;
 
     this.container.innerHTML = '';
@@ -59,47 +61,57 @@ export class MapSelectScreen {
 
     // Main content wrapper
     const content = document.createElement('div');
-    content.style.cssText = 'position:relative;z-index:1;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;';
+    content.style.cssText = 'position:relative;z-index:1;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;overflow-y:auto;padding:40px 0;';
     this.container.appendChild(content);
 
-    // Act title
-    const titleBlock = document.createElement('div');
-    titleBlock.style.cssText = 'text-align:center;margin-bottom:48px;';
+    // Render each act section
+    for (const actNum of [1, 2]) {
+      const act = ACT_TITLES[actNum];
+      if (!act) continue;
+      const actMaps = state.getActMaps(actNum);
+      if (actMaps.length === 0) continue;
 
-    const title = document.createElement('div');
-    title.textContent = act.title;
-    title.style.cssText = 'font-size:28px;font-weight:bold;letter-spacing:6px;color:#c8d8ff;text-shadow:0 0 20px rgba(100,140,255,0.4);margin-bottom:12px;';
-    titleBlock.appendChild(title);
+      const actSection = document.createElement('div');
+      actSection.style.cssText = 'display:flex;flex-direction:column;align-items:center;margin-bottom:36px;';
 
-    const subtitle = document.createElement('div');
-    subtitle.textContent = `"${act.subtitle}"`;
-    subtitle.style.cssText = 'font-size:14px;color:#6678aa;font-style:italic;letter-spacing:2px;';
-    titleBlock.appendChild(subtitle);
+      // Act title
+      const titleBlock = document.createElement('div');
+      titleBlock.style.cssText = 'text-align:center;margin-bottom:28px;';
 
-    content.appendChild(titleBlock);
+      const title = document.createElement('div');
+      title.textContent = act.title;
+      title.style.cssText = 'font-size:24px;font-weight:bold;letter-spacing:6px;color:#c8d8ff;text-shadow:0 0 20px rgba(100,140,255,0.4);margin-bottom:8px;';
+      titleBlock.appendChild(title);
 
-    // Map path container
-    const pathContainer = document.createElement('div');
-    pathContainer.style.cssText = 'display:flex;align-items:center;gap:0;margin-bottom:48px;position:relative;';
-    content.appendChild(pathContainer);
+      const subtitle = document.createElement('div');
+      subtitle.textContent = `"${act.subtitle}"`;
+      subtitle.style.cssText = 'font-size:13px;color:#6678aa;font-style:italic;letter-spacing:2px;';
+      titleBlock.appendChild(subtitle);
 
-    for (let i = 0; i < actMaps.length; i++) {
-      const map = actMaps[i];
+      actSection.appendChild(titleBlock);
 
-      // Map node
-      const node = this.createMapNode(map, selected === map.id);
-      pathContainer.appendChild(node);
+      // Map path container
+      const pathContainer = document.createElement('div');
+      pathContainer.style.cssText = 'display:flex;align-items:center;gap:0;position:relative;';
 
-      // Connector line between nodes
-      if (i < actMaps.length - 1) {
-        const connector = document.createElement('div');
-        const nextUnlocked = actMaps[i + 1].unlocked;
-        connector.style.cssText = `width:60px;height:2px;background:${nextUnlocked ? 'linear-gradient(to right, #4466aa, #4466aa)' : 'linear-gradient(to right, #223, #1a1a2a)'};margin:0 -1px;flex-shrink:0;position:relative;top:-14px;`;
-        if (nextUnlocked) {
-          connector.style.boxShadow = '0 0 8px rgba(68,102,170,0.4)';
+      for (let i = 0; i < actMaps.length; i++) {
+        const map = actMaps[i];
+        const node = this.createMapNode(map, selected === map.id);
+        pathContainer.appendChild(node);
+
+        if (i < actMaps.length - 1) {
+          const connector = document.createElement('div');
+          const nextUnlocked = actMaps[i + 1].unlocked;
+          connector.style.cssText = `width:60px;height:2px;background:${nextUnlocked ? 'linear-gradient(to right, #4466aa, #4466aa)' : 'linear-gradient(to right, #223, #1a1a2a)'};margin:0 -1px;flex-shrink:0;position:relative;top:-14px;`;
+          if (nextUnlocked) {
+            connector.style.boxShadow = '0 0 8px rgba(68,102,170,0.4)';
+          }
+          pathContainer.appendChild(connector);
         }
-        pathContainer.appendChild(connector);
       }
+
+      actSection.appendChild(pathContainer);
+      content.appendChild(actSection);
     }
 
     // Description panel
@@ -205,12 +217,12 @@ export class MapSelectScreen {
       circle.appendChild(check);
 
       const mapLabel = document.createElement('div');
-      mapLabel.textContent = map.id.replace('map_1_', '1-').replace('map_', '').toUpperCase();
+      mapLabel.textContent = map.id.replace(/^map_(\d+)_/, '$1-').toUpperCase();
       mapLabel.style.cssText = 'font-size:10px;color:#6a8;margin-top:2px;';
       circle.appendChild(mapLabel);
     } else {
       const mapLabel = document.createElement('div');
-      mapLabel.textContent = map.id.replace('map_1_', '1-').replace('map_', '').toUpperCase();
+      mapLabel.textContent = map.id.replace(/^map_(\d+)_/, '$1-').toUpperCase();
       mapLabel.style.cssText = `font-size:13px;color:${map.isBoss ? '#cc7755' : '#8899bb'};font-weight:bold;`;
       circle.appendChild(mapLabel);
     }

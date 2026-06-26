@@ -1,5 +1,6 @@
 import type { GameStore } from '@/app/store/GameStore';
 import { TOWER_DEFS } from '@/shared/data/TowerData';
+import { NEBULA_DEFS } from '@/shared/data/NebulaData';
 
 export class HUD {
   private container: HTMLDivElement;
@@ -11,7 +12,10 @@ export class HUD {
   private store: GameStore;
 
   private selectedTowerId: string | null = null;
+  private selectedNebulaId: string | null = null;
+  availableNebulae: string[] = [];
   onTowerSelected: ((towerId: string | null) => void) | null = null;
+  onNebulaSelected: ((nebulaId: string | null) => void) | null = null;
   onStartWave: (() => void) | null = null;
   onRestart: (() => void) | null = null;
   onCycleSpeed: (() => void) | null = null;
@@ -100,8 +104,34 @@ export class HUD {
       btn.textContent = `${def.nameKo} (${def.cost})`;
       btn.style.cssText = `background:${selected ? '#446' : '#223'};color:#ddf;border:1px solid ${selected ? '#88a' : '#445'};padding:6px 12px;cursor:pointer;font-family:monospace;font-size:12px;border-radius:4px;`;
       btn.onclick = () => {
+        this.selectedNebulaId = null;
         this.selectedTowerId = this.selectedTowerId === tid ? null : tid;
         this.onTowerSelected?.(this.selectedTowerId);
+        this.render();
+      };
+      this.bottomBar.appendChild(btn);
+    }
+
+    // Nebula separator (only if nebulae available)
+    if (this.availableNebulae.length > 0) {
+      const nebSep = document.createElement('div');
+      nebSep.style.cssText = 'width:1px;height:32px;background:#253;';
+      this.bottomBar.appendChild(nebSep);
+    }
+
+    // Nebula palette
+    if (this.availableNebulae.length === 0) return;
+
+    for (const nid of this.availableNebulae) {
+      const def = NEBULA_DEFS[nid];
+      const btn = document.createElement('button');
+      const selected = this.selectedNebulaId === nid;
+      btn.textContent = `${def.nameKo} (${def.cost})`;
+      btn.style.cssText = `background:${selected ? '#243' : '#1a2a1a'};color:#aec;border:1px solid ${selected ? '#4a6' : '#354'};padding:6px 12px;cursor:pointer;font-family:monospace;font-size:12px;border-radius:4px;`;
+      btn.onclick = () => {
+        this.selectedTowerId = null;
+        this.selectedNebulaId = this.selectedNebulaId === nid ? null : nid;
+        this.onNebulaSelected?.(this.selectedNebulaId);
         this.render();
       };
       this.bottomBar.appendChild(btn);
@@ -179,8 +209,13 @@ export class HUD {
     return this.selectedTowerId;
   }
 
+  getSelectedNebulaId(): string | null {
+    return this.selectedNebulaId;
+  }
+
   clearSelection() {
     this.selectedTowerId = null;
+    this.selectedNebulaId = null;
   }
 
   dispose() {
