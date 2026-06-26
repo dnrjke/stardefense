@@ -241,3 +241,252 @@ export function createMap2_B(): MapDef {
     cameraDistance: 20,
   };
 }
+
+export function createMap3_1(): MapDef {
+  const cols = 20;
+  const rows = 14;
+  const tileSize = 1;
+  const buildable = createEmptyGrid(rows, cols);
+
+  const waypoints: Vec2[] = [
+    { x: 0, y: 2 },
+    { x: 5, y: 2 },
+    { x: 5, y: 7 },
+    { x: 10, y: 7 },
+    { x: 10, y: 3 },
+    { x: 15, y: 3 },
+    { x: 15, y: 11 },
+    { x: 19, y: 11 },
+  ];
+
+  markPathOnGrid(buildable, waypoints);
+  return { cols, rows, tileSize, waypoints, buildable, cameraDistance: 22 };
+}
+
+export function createMap3_2(): MapDef {
+  const cols = 20;
+  const rows = 14;
+  const tileSize = 1;
+  const buildable = createEmptyGrid(rows, cols);
+
+  const pathA: Vec2[] = [
+    { x: 0, y: 3 },
+    { x: 6, y: 3 },
+    { x: 6, y: 6 },
+    { x: 13, y: 6 },
+    { x: 13, y: 3 },
+    { x: 19, y: 3 },
+  ];
+
+  const pathB: Vec2[] = [
+    { x: 0, y: 10 },
+    { x: 6, y: 10 },
+    { x: 6, y: 8 },
+    { x: 13, y: 8 },
+    { x: 13, y: 10 },
+    { x: 19, y: 10 },
+  ];
+
+  markPathOnGrid(buildable, pathA);
+  markPathOnGrid(buildable, pathB);
+
+  return {
+    cols, rows, tileSize,
+    waypoints: pathA,
+    paths: [pathA, pathB],
+    buildable,
+    cameraDistance: 22,
+  };
+}
+
+export function createMap3_3(): MapDef {
+  const cols = 20;
+  const rows = 14;
+  const tileSize = 1;
+  const buildable = createEmptyGrid(rows, cols);
+
+  const pathA: Vec2[] = [
+    { x: 0, y: 1 },
+    { x: 5, y: 1 },
+    { x: 5, y: 4 },
+    { x: 12, y: 4 },
+    { x: 12, y: 7 },
+    { x: 19, y: 7 },
+  ];
+
+  const pathB: Vec2[] = [
+    { x: 0, y: 7 },
+    { x: 3, y: 7 },
+    { x: 3, y: 9 },
+    { x: 9, y: 9 },
+    { x: 9, y: 7 },
+    { x: 19, y: 7 },
+  ];
+
+  const pathC: Vec2[] = [
+    { x: 0, y: 12 },
+    { x: 5, y: 12 },
+    { x: 5, y: 10 },
+    { x: 12, y: 10 },
+    { x: 12, y: 7 },
+    { x: 19, y: 7 },
+  ];
+
+  markPathOnGrid(buildable, pathA);
+  markPathOnGrid(buildable, pathB);
+  markPathOnGrid(buildable, pathC);
+
+  return {
+    cols, rows, tileSize,
+    waypoints: pathA,
+    paths: [pathA, pathB, pathC],
+    buildable,
+    cameraDistance: 22,
+  };
+}
+
+export function createMap3_B(): MapDef {
+  const cols = 20;
+  const rows = 14;
+  const tileSize = 1;
+  const buildable = createEmptyGrid(rows, cols);
+
+  const waypoints: Vec2[] = [
+    { x: 0, y: 2 },
+    { x: 3, y: 2 },
+    { x: 3, y: 8 },
+    { x: 7, y: 8 },
+    { x: 7, y: 1 },
+    { x: 12, y: 1 },
+    { x: 12, y: 11 },
+    { x: 16, y: 11 },
+    { x: 16, y: 5 },
+    { x: 19, y: 5 },
+  ];
+
+  markPathOnGrid(buildable, waypoints);
+  return { cols, rows, tileSize, waypoints, buildable, cameraDistance: 22 };
+}
+
+export function createMap4_1(): MapDef {
+  const cols = 22;
+  const rows = 16;
+  const tileSize = 1;
+  const buildable = createEmptyGrid(rows, cols);
+
+  const waypoints: Vec2[] = [
+    { x: 0, y: 2 },
+    { x: 5, y: 2 },
+    { x: 5, y: 7 },
+    { x: 2, y: 7 },
+    { x: 2, y: 12 },
+    { x: 9, y: 12 },
+    { x: 9, y: 4 },
+    { x: 14, y: 4 },
+    { x: 14, y: 13 },
+    { x: 19, y: 13 },
+    { x: 19, y: 8 },
+    { x: 21, y: 8 },
+  ];
+
+  markPathOnGrid(buildable, waypoints);
+  return { cols, rows, tileSize, waypoints, buildable, cameraDistance: 26 };
+}
+
+export function createMap4_2(): MapDef {
+  const cols = 22;
+  const rows = 16;
+  const tileSize = 1;
+  const buildable = createEmptyGrid(rows, cols);
+
+  const pathA: Vec2[] = [
+    { x: 0, y: 2 },
+    { x: 6, y: 2 },
+    { x: 6, y: 7 },
+    { x: 10, y: 7 },
+    { x: 10, y: 10 },
+    { x: 16, y: 10 },
+    { x: 16, y: 14 },
+    { x: 21, y: 14 },
+  ];
+
+  const pathB: Vec2[] = [
+    { x: 0, y: 8 },
+    { x: 4, y: 8 },
+    { x: 4, y: 12 },
+    { x: 10, y: 12 },
+    { x: 10, y: 10 },
+    { x: 16, y: 10 },
+    { x: 16, y: 14 },
+    { x: 21, y: 14 },
+  ];
+
+  const pathC: Vec2[] = [
+    { x: 0, y: 14 },
+    { x: 6, y: 14 },
+    { x: 6, y: 10 },
+    { x: 10, y: 10 },
+    { x: 10, y: 10 },
+    { x: 16, y: 10 },
+    { x: 16, y: 14 },
+    { x: 21, y: 14 },
+  ];
+
+  markPathOnGrid(buildable, pathA);
+  markPathOnGrid(buildable, pathB);
+  markPathOnGrid(buildable, pathC);
+
+  return {
+    cols, rows, tileSize,
+    waypoints: pathA,
+    paths: [pathA, pathB, pathC],
+    buildable,
+    cameraDistance: 26,
+  };
+}
+
+export function createMap4_3(): MapDef {
+  const cols = 22;
+  const rows = 16;
+  const tileSize = 1;
+  const buildable = createEmptyGrid(rows, cols);
+
+  const waypoints: Vec2[] = [
+    { x: 0, y: 3 },
+    { x: 6, y: 3 },
+    { x: 6, y: 10 },
+    { x: 12, y: 10 },
+    { x: 12, y: 5 },
+    { x: 18, y: 5 },
+    { x: 18, y: 12 },
+    { x: 21, y: 12 },
+  ];
+
+  markPathOnGrid(buildable, waypoints);
+  return { cols, rows, tileSize, waypoints, buildable, cameraDistance: 26 };
+}
+
+export function createMap4_B(): MapDef {
+  const cols = 22;
+  const rows = 16;
+  const tileSize = 1;
+  const buildable = createEmptyGrid(rows, cols);
+
+  const waypoints: Vec2[] = [
+    { x: 0, y: 1 },
+    { x: 4, y: 1 },
+    { x: 4, y: 6 },
+    { x: 1, y: 6 },
+    { x: 1, y: 11 },
+    { x: 7, y: 11 },
+    { x: 7, y: 3 },
+    { x: 12, y: 3 },
+    { x: 12, y: 13 },
+    { x: 17, y: 13 },
+    { x: 17, y: 6 },
+    { x: 21, y: 6 },
+  ];
+
+  markPathOnGrid(buildable, waypoints);
+  return { cols, rows, tileSize, waypoints, buildable, cameraDistance: 26 };
+}

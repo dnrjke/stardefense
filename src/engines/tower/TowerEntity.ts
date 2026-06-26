@@ -284,6 +284,10 @@ export class TowerEntity {
     this.shaderMat.setFloat('uTime', this.timeAccum);
   }
 
+  canDetectStealth(): boolean {
+    return this.def.specialType === 'magnetar' || this.def.specialType === 'pulsar';
+  }
+
   advancePulsarTimer(dt: number): boolean {
     if (this.def.specialType !== 'pulsar') return false;
     this.pulsarTimer += dt;
@@ -316,6 +320,7 @@ export class TowerEntity {
 
     for (const enemy of enemies) {
       if (!enemy.alive) continue;
+      if (enemy.isStealth() && !this.canDetectStealth()) continue;
       const dx = enemy.position.x - this.mesh.position.x;
       const dz = enemy.position.z - this.mesh.position.z;
       const distSq = dx * dx + dz * dz;

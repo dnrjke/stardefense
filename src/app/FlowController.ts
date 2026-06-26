@@ -12,8 +12,10 @@ import type { GameStore } from '@/app/store/GameStore';
 import { createCampaignStore } from '@/app/store/CampaignStore';
 import type { CampaignStore } from '@/app/store/CampaignStore';
 import { MapSelectScreen } from '@/shared/ui/MapSelectScreen';
-import { createMap1_1, createMap1_2, createMap1_3, createMap1_B, createMap2_1, createMap2_2, createMap2_3, createMap2_B } from '@/shared/data/MapData';
-import { MAP_1_1_WAVES, MAP_1_2_WAVES, MAP_1_3_WAVES, MAP_1_B_WAVES, MAP_2_1_WAVES, MAP_2_2_WAVES, MAP_2_3_WAVES, MAP_2_B_WAVES } from '@/shared/data/WaveData';
+import { createMap1_1, createMap1_2, createMap1_3, createMap1_B, createMap2_1, createMap2_2, createMap2_3, createMap2_B, createMap3_1, createMap3_2, createMap3_3, createMap3_B, createMap4_1, createMap4_2, createMap4_3, createMap4_B } from '@/shared/data/MapData';
+import { MAP_1_1_WAVES, MAP_1_2_WAVES, MAP_1_3_WAVES, MAP_1_B_WAVES, MAP_2_1_WAVES, MAP_2_2_WAVES, MAP_2_3_WAVES, MAP_2_B_WAVES, MAP_3_1_WAVES, MAP_3_2_WAVES, MAP_3_3_WAVES, MAP_3_B_WAVES, MAP_4_1_WAVES, MAP_4_2_WAVES, MAP_4_3_WAVES, MAP_4_B_WAVES } from '@/shared/data/WaveData';
+import { MAP_ENVIRONMENTS } from '@/shared/data/MapEnvironment';
+import { SpellEngine } from '@/engines/spell/SpellEngine';
 import { TOWER_DEFS } from '@/shared/data/TowerData';
 import { getEvolutions } from '@/engines/tower/EvolutionSystem';
 import type { MapDef } from '@/shared/data/MapData';
@@ -35,6 +37,8 @@ interface MapConfig {
   availableTowers: string[];
   availableNebulae?: string[];
   unlockOnClear?: string;
+  environment?: string;
+  isSurvival?: boolean;
 }
 
 const MAP_CONFIGS: Record<string, MapConfig> = {
@@ -86,6 +90,67 @@ const MAP_CONFIGS: Record<string, MapConfig> = {
     waves: MAP_2_B_WAVES,
     availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse'],
     availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
+    unlockOnClear: 'map_3_1',
+  },
+  map_3_1: {
+    createMap: createMap3_1,
+    waves: MAP_3_1_WAVES,
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar'],
+    availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
+    unlockOnClear: 'map_3_2',
+  },
+  map_3_2: {
+    createMap: createMap3_2,
+    waves: MAP_3_2_WAVES,
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar'],
+    availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
+    unlockOnClear: 'map_3_3',
+  },
+  map_3_3: {
+    createMap: createMap3_3,
+    waves: MAP_3_3_WAVES,
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar'],
+    availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
+    unlockOnClear: 'map_3_b',
+  },
+  map_3_b: {
+    createMap: createMap3_B,
+    waves: MAP_3_B_WAVES,
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar'],
+    availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
+    unlockOnClear: 'map_4_1',
+  },
+  map_4_1: {
+    createMap: createMap4_1,
+    waves: MAP_4_1_WAVES,
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar'],
+    availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
+    environment: 'dark_sector',
+    unlockOnClear: 'map_4_2',
+  },
+  map_4_2: {
+    createMap: createMap4_2,
+    waves: MAP_4_2_WAVES,
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar'],
+    availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
+    environment: 'gravity_well',
+    unlockOnClear: 'map_4_3',
+  },
+  map_4_3: {
+    createMap: createMap4_3,
+    waves: MAP_4_3_WAVES,
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar'],
+    availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
+    environment: 'nebula_rich',
+    isSurvival: true,
+    unlockOnClear: 'map_4_b',
+  },
+  map_4_b: {
+    createMap: createMap4_B,
+    waves: MAP_4_B_WAVES,
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar'],
+    availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
+    environment: 'dark_sector',
   },
 };
 
@@ -110,6 +175,7 @@ export class FlowController {
   private towerEngine: TowerEngine | null = null;
   private waveEngine: WaveEngine | null = null;
   private nebulaEngine: NebulaEngine | null = null;
+  private spellEngine: SpellEngine | null = null;
   private gameStore: GameStore | null = null;
   private hud: HUD | null = null;
   private radialMenu: RadialMenu | null = null;
@@ -186,10 +252,15 @@ export class FlowController {
     this.waveEngine = new WaveEngine(this.scene, paths);
     this.towerEngine = new TowerEngine(this.scene, this.mapEngine);
     this.nebulaEngine = new NebulaEngine(this.scene, this.mapEngine);
+    this.spellEngine = new SpellEngine();
 
     // Store
-    this.gameStore = createGameStore(config.waves.length);
+    const totalWaves = config.isSurvival ? 9999 : config.waves.length;
+    this.gameStore = createGameStore(totalWaves);
     const store = this.gameStore;
+
+    const env = config.environment ? MAP_ENVIRONMENTS[config.environment] : undefined;
+    const ismMult = env?.ismMultiplier ?? 1;
 
     // Set available towers from config
     for (const tid of config.availableTowers) {
@@ -251,7 +322,11 @@ export class FlowController {
       const adjustedDamage = damage + armorReduction;
       const killed = this.waveEngine!.killEnemy(enemy, adjustedDamage);
       if (killed) {
-        store.getState().addIsm(enemy.def.reward);
+        const reward = Math.round(enemy.def.reward * ismMult);
+        store.getState().addIsm(reward);
+        store.getState().addSpellGauge(5);
+        store.getState().incrementEnemiesKilled();
+        this.showFloatingIsm(reward, enemy.position);
       }
     };
 
@@ -261,9 +336,11 @@ export class FlowController {
 
     this.waveEngine.onWaveCleared = () => {
       const state = store.getState();
-      const waveDef = config.waves[state.currentWave - 1];
-      if (waveDef) state.addIsm(waveDef.reward);
-      if (waveDef) this.hud!.showWaveBanner(state.currentWave, waveDef.reward);
+      const waveIndex = this.getSurvivalWaveIndex(state.currentWave, config);
+      const waveDef = config.waves[waveIndex];
+      const reward = waveDef ? Math.round(waveDef.reward * ismMult) : 0;
+      if (reward > 0) state.addIsm(reward);
+      if (waveDef) this.hud!.showWaveBanner(state.currentWave, reward);
 
       for (const tower of this.towerEngine!.getTowers()) {
         tower.onWaveCompleted();
@@ -274,7 +351,12 @@ export class FlowController {
         store.getState().unlockTower('proxima');
       }
 
-      if (state.currentWave >= state.totalWaves) {
+      // Survival cycle tracking
+      if (config.isSurvival && state.currentWave % config.waves.length === 0) {
+        store.getState().incrementSurvivalCycle();
+      }
+
+      if (!config.isSurvival && state.currentWave >= state.totalWaves) {
         state.setPhase('clear');
         this.hud!.showEndScreen(true, mapId);
       } else {
@@ -299,7 +381,16 @@ export class FlowController {
       store.getState().setPhase('wave');
       this.hud!.hideTutorial();
       this.hud!.render();
-      this.waveEngine!.startWave(config.waves[waveIdx - 1]);
+
+      const waveIndex = this.getSurvivalWaveIndex(waveIdx, config);
+      const waveDef = config.waves[waveIndex];
+      if (config.isSurvival) {
+        const cycle = store.getState().survivalCycle;
+        const scaledWave = this.scaleSurvivalWave(waveDef, cycle);
+        this.waveEngine!.startWave(scaledWave);
+      } else {
+        this.waveEngine!.startWave(waveDef);
+      }
     };
 
     this.hud.onTowerSelected = () => {
@@ -321,6 +412,13 @@ export class FlowController {
 
     this.hud.onContinue = () => {
       this.onMapVictory(mapId);
+    };
+
+    this.hud.onCastSpell = (spellId: string) => {
+      if (!this.spellEngine || !this.waveEngine || !this.gameStore) return;
+      const enemies = this.waveEngine.getAliveEnemies();
+      this.spellEngine.castSpell(spellId, enemies, this.gameStore);
+      this.hud!.render();
     };
 
     // Pointer handler
@@ -381,7 +479,11 @@ export class FlowController {
         if (!def) return;
         if (!store.getState().spendIsm(def.cost)) return;
 
-        this.towerEngine!.placeTower(towerId, meta.row, meta.col);
+        const placed = this.towerEngine!.placeTower(towerId, meta.row, meta.col);
+        if (placed) {
+          store.getState().incrementTowersPlaced();
+          this.animateTowerPlacement(placed.mesh);
+        }
         this.hud!.render();
       }
     };
@@ -414,6 +516,50 @@ export class FlowController {
 
   returnToMapSelect() {
     this.showMapSelect();
+  }
+
+  private getSurvivalWaveIndex(waveNum: number, config: MapConfig): number {
+    if (!config.isSurvival) return waveNum - 1;
+    return (waveNum - 1) % config.waves.length;
+  }
+
+  private scaleSurvivalWave(waveDef: WaveDef, cycle: number): WaveDef {
+    if (cycle <= 0) return waveDef;
+    const scale = 1 + cycle * 0.2;
+    return {
+      reward: Math.round(waveDef.reward * scale),
+      spawns: waveDef.spawns.map(s => ({ ...s })),
+    };
+  }
+
+  private animateTowerPlacement(mesh: BABYLON.Mesh) {
+    const original = mesh.scaling.clone();
+    mesh.scaling.setAll(0);
+    const anim = new BABYLON.Animation('towerPlace', 'scaling', 30, BABYLON.Animation.ANIMATIONTYPE_VECTOR3, BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
+    anim.setKeys([
+      { frame: 0, value: new BABYLON.Vector3(0, 0, 0) },
+      { frame: 9, value: original },
+    ]);
+    mesh.animations = [anim];
+    this.scene.beginAnimation(mesh, 0, 9, false);
+  }
+
+  private showFloatingIsm(amount: number, worldPos: BABYLON.Vector3) {
+    const screenPos = BABYLON.Vector3.Project(
+      worldPos,
+      BABYLON.Matrix.Identity(),
+      this.scene.getTransformMatrix(),
+      this.camera.viewport.toGlobal(this.engine.getRenderWidth(), this.engine.getRenderHeight()),
+    );
+    const el = document.createElement('div');
+    el.textContent = `+${amount}`;
+    el.style.cssText = `position:fixed;left:${screenPos.x}px;top:${screenPos.y}px;color:#ff4;font-family:monospace;font-size:14px;font-weight:bold;pointer-events:none;z-index:20;text-shadow:0 0 4px rgba(255,255,0,0.5);transition:all 0.5s ease-out;`;
+    document.body.appendChild(el);
+    requestAnimationFrame(() => {
+      el.style.top = `${screenPos.y - 40}px`;
+      el.style.opacity = '0';
+    });
+    setTimeout(() => el.remove(), 500);
   }
 
   private showTutorial() {
@@ -461,6 +607,7 @@ export class FlowController {
     this.towerEngine = null;
     this.waveEngine = null;
     this.nebulaEngine = null;
+    this.spellEngine = null;
     this.gameStore = null;
     this.hud = null;
     this.radialMenu = null;
@@ -577,6 +724,7 @@ export class FlowController {
           const enemies = this.waveEngine!.getAliveEnemies();
           this.nebulaEngine.applyDotDamage(enemies, this.fixedStep!.fixedDt);
         }
+        this.gameStore!.getState().tickCooldowns(this.fixedStep!.fixedDt);
       }
     });
 

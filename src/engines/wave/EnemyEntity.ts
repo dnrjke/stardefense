@@ -379,6 +379,167 @@ void main() {
 }
 `;
 
+const _QUASAR_VERT = /* glsl */`
+precision highp float;
+attribute vec3 position;
+attribute vec3 normal;
+uniform mat4 worldViewProjection;
+uniform mat4 world;
+uniform vec3 cameraPosition;
+varying vec3 vLocalPos;
+varying vec3 vWorldNorm;
+varying vec3 vViewDir;
+void main() {
+    gl_Position = worldViewProjection * vec4(position, 1.0);
+    vLocalPos   = position;
+    vWorldNorm  = normalize((world * vec4(normal, 0.0)).xyz);
+    vec3 wPos   = (world * vec4(position, 1.0)).xyz;
+    vViewDir    = normalize(cameraPosition - wPos);
+}
+`;
+
+const _QUASAR_FRAG = /* glsl */`
+precision highp float;
+varying vec3 vLocalPos;
+varying vec3 vWorldNorm;
+varying vec3 vViewDir;
+uniform float uTime;
+
+float hash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.3))) * 43758.5453123); }
+float noise(vec3 p) {
+    vec3 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+        mix(mix(hash(i), hash(i+vec3(1,0,0)), f.x),
+            mix(hash(i+vec3(0,1,0)), hash(i+vec3(1,1,0)), f.x), f.y),
+        mix(mix(hash(i+vec3(0,0,1)), hash(i+vec3(1,0,1)), f.x),
+            mix(hash(i+vec3(0,1,1)), hash(i+vec3(1,1,1)), f.x), f.y),
+        f.z);
+}
+float fbm(vec3 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 5; i++) { v += a * noise(p); p = p * 2.1 + vec3(3.7, 6.8, 1.3); a *= 0.5; }
+    return v;
+}
+void main() {
+    vec3 n = normalize(vLocalPos);
+    vec3 N = normalize(vWorldNorm);
+    vec3 V = normalize(vViewDir);
+    float NdotV = max(dot(N, V), 0.0);
+
+    float pulse = 0.7 + 0.3 * sin(uTime * 6.0);
+    float fastPulse = 0.8 + 0.2 * sin(uTime * 15.0);
+
+    // Bright white-blue core
+    float coreGlow = pow(NdotV, 3.0);
+    vec3 coreColor = mix(vec3(0.8, 0.9, 1.0), vec3(1.0, 1.0, 1.0), coreGlow) * (1.5 + 0.5 * pulse);
+
+    // Orange accretion disk at equator
+    float equator = 1.0 - abs(n.y);
+    float diskMask = smoothstep(0.3, 0.8, equator);
+    float diskNoise = fbm(n * 8.0 + vec3(uTime * 1.5, 0.0, uTime * 0.8));
+    vec3 diskColor = mix(vec3(1.0, 0.5, 0.1), vec3(1.0, 0.8, 0.3), diskNoise) * diskMask * 1.2;
+
+    // Jet beams along Y axis
+    float jetAxis = abs(n.y);
+    float jetMask = smoothstep(0.6, 0.95, jetAxis) * fastPulse;
+    float jetNoise = fbm(n * 6.0 + vec3(0.0, uTime * 3.0, 0.0));
+    jetMask *= (0.5 + 0.5 * jetNoise);
+    vec3 jetColor = vec3(0.6, 0.8, 1.0) * jetMask * 2.0;
+
+    float fresnel = pow(1.0 - NdotV, 2.0);
+    vec3 rimGlow = vec3(1.0, 0.7, 0.3) * fresnel * 0.8 * pulse;
+
+    float limb = mix(0.6, 1.0, NdotV);
+    vec3 emissive = vec3(0.3, 0.2, 0.1) * pulse;
+
+    gl_FragColor = vec4(coreColor * limb + diskColor + jetColor + rimGlow + emissive, 1.0);
+}
+`;
+
+const _ENTROPY_VERT = /* glsl */`
+precision highp float;
+attribute vec3 position;
+attribute vec3 normal;
+uniform mat4 worldViewProjection;
+uniform mat4 world;
+uniform vec3 cameraPosition;
+varying vec3 vLocalPos;
+varying vec3 vWorldNorm;
+varying vec3 vViewDir;
+void main() {
+    gl_Position = worldViewProjection * vec4(position, 1.0);
+    vLocalPos   = position;
+    vWorldNorm  = normalize((world * vec4(normal, 0.0)).xyz);
+    vec3 wPos   = (world * vec4(position, 1.0)).xyz;
+    vViewDir    = normalize(cameraPosition - wPos);
+}
+`;
+
+const _ENTROPY_FRAG = /* glsl */`
+precision highp float;
+varying vec3 vLocalPos;
+varying vec3 vWorldNorm;
+varying vec3 vViewDir;
+uniform float uTime;
+
+float hash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.3))) * 43758.5453123); }
+float noise(vec3 p) {
+    vec3 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+        mix(mix(hash(i), hash(i+vec3(1,0,0)), f.x),
+            mix(hash(i+vec3(0,1,0)), hash(i+vec3(1,1,0)), f.x), f.y),
+        mix(mix(hash(i+vec3(0,0,1)), hash(i+vec3(1,0,1)), f.x),
+            mix(hash(i+vec3(0,1,1)), hash(i+vec3(1,1,1)), f.x), f.y),
+        f.z);
+}
+float fbm(vec3 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 5; i++) { v += a * noise(p); p = p * 2.1 + vec3(3.7, 6.8, 1.3); a *= 0.5; }
+    return v;
+}
+void main() {
+    vec3 n = normalize(vLocalPos);
+    vec3 N = normalize(vWorldNorm);
+    vec3 V = normalize(vViewDir);
+    float NdotV = max(dot(N, V), 0.0);
+
+    float darkPulse = 0.5 + 0.5 * sin(uTime * 1.5);
+    float chaosPulse = 0.6 + 0.4 * sin(uTime * 4.0 + 2.0);
+
+    // Dark void core — inverse glow: darker at center
+    float inverseLimb = mix(1.0, 0.05, NdotV);
+
+    // Chaotic energy absorption at edges
+    float f1 = fbm(n * 5.0 + uTime * 0.6);
+    float f2 = fbm(n * 8.0 - uTime * 0.4 + vec3(5.0, 3.0, 7.0));
+    float f3 = fbm(n * 12.0 + vec3(uTime * 0.8, -uTime * 0.5, uTime * 0.3));
+
+    // Multicolored chaotic absorption
+    float edgeMask = pow(1.0 - NdotV, 2.0);
+    vec3 chaos1 = vec3(0.8, 0.1, 0.2) * smoothstep(0.4, 0.6, f1);
+    vec3 chaos2 = vec3(0.1, 0.3, 0.9) * smoothstep(0.35, 0.55, f2);
+    vec3 chaos3 = vec3(0.9, 0.6, 0.1) * smoothstep(0.45, 0.65, f3);
+    vec3 chaosColor = (chaos1 + chaos2 + chaos3) * edgeMask * chaosPulse;
+
+    // Pulsing dark energy waves
+    float wavePattern = sin(n.x * 10.0 + uTime * 2.0) * sin(n.y * 10.0 - uTime * 1.5) * sin(n.z * 10.0 + uTime);
+    float darkWave = smoothstep(0.3, 0.8, wavePattern * 0.5 + 0.5) * edgeMask * 0.3;
+
+    // Bright distorted rim
+    float fresnel = pow(1.0 - NdotV, 3.5);
+    vec3 rimGlow = mix(vec3(0.9, 0.3, 0.1), vec3(0.3, 0.1, 0.9), sin(uTime * 2.0 + f1 * 6.0) * 0.5 + 0.5) * fresnel * 1.5;
+
+    // Black core
+    vec3 coreColor = vec3(0.02, 0.01, 0.03) * inverseLimb;
+
+    vec3 emissive = vec3(0.05, 0.02, 0.08) * darkPulse;
+
+    gl_FragColor = vec4(coreColor + chaosColor + rimGlow + darkWave * vec3(0.5, 0.2, 0.8) + emissive, 1.0);
+}
+`;
+
 // ── Register enemy shaders ──
 if (!BABYLON.Effect.ShadersStore['asteroidVertexShader']) {
   BABYLON.Effect.ShadersStore['asteroidVertexShader']   = _ASTEROID_VERT;
@@ -393,6 +554,10 @@ if (!BABYLON.Effect.ShadersStore['asteroidVertexShader']) {
   BABYLON.Effect.ShadersStore['darkMatterFragmentShader'] = _DARK_MATTER_FRAG;
   BABYLON.Effect.ShadersStore['antimatterVertexShader']   = _ANTIMATTER_VERT;
   BABYLON.Effect.ShadersStore['antimatterFragmentShader'] = _ANTIMATTER_FRAG;
+  BABYLON.Effect.ShadersStore['quasarVertexShader']       = _QUASAR_VERT;
+  BABYLON.Effect.ShadersStore['quasarFragmentShader']     = _QUASAR_FRAG;
+  BABYLON.Effect.ShadersStore['entropyVertexShader']      = _ENTROPY_VERT;
+  BABYLON.Effect.ShadersStore['entropyFragmentShader']    = _ENTROPY_FRAG;
 }
 
 let _enemySeedCounter = 0;
@@ -416,6 +581,8 @@ export class EnemyEntity {
   private timeAccum = 0;
   private cometTail: BABYLON.Mesh | null = null;
   private cometTailMat: BABYLON.StandardMaterial | null = null;
+  slowMultiplier = 1.0;
+  slowTimer = 0;
 
   constructor(scene: BABYLON.Scene, def: EnemyDef, waypoints: BABYLON.Vector3[], startWaypoint = 0) {
     this.def = def;
@@ -489,6 +656,20 @@ export class EnemyEntity {
       this.shaderMat.backFaceCulling = false;
       this.mesh.material = this.shaderMat;
       this.mesh.hasVertexAlpha = true;
+    } else if (def.id === 'quasar') {
+      this.shaderMat = new BABYLON.ShaderMaterial(`quasarMat_${this.mesh.name}`, scene,
+        { vertex: 'quasar', fragment: 'quasar' },
+        { attributes: ['position', 'normal'], uniforms: ['worldViewProjection', 'world', 'cameraPosition', 'uTime'] },
+      );
+      this.shaderMat.setFloat('uTime', 0);
+      this.mesh.material = this.shaderMat;
+    } else if (def.id === 'entropy') {
+      this.shaderMat = new BABYLON.ShaderMaterial(`entropyMat_${this.mesh.name}`, scene,
+        { vertex: 'entropy', fragment: 'entropy' },
+        { attributes: ['position', 'normal'], uniforms: ['worldViewProjection', 'world', 'cameraPosition', 'uTime'] },
+      );
+      this.shaderMat.setFloat('uTime', 0);
+      this.mesh.material = this.shaderMat;
     } else if (def.id === 'antimatter_storm' || def.id === 'antimatter_storm_split') {
       this.shaderMat = new BABYLON.ShaderMaterial(`antimatterMat_${this.mesh.name}`, scene,
         { vertex: 'antimatter', fragment: 'antimatter' },
@@ -551,6 +732,11 @@ export class EnemyEntity {
     return this.def.id === 'grb' ? 3.0 : null;
   }
 
+  applySlow(mult: number, duration: number) {
+    this.slowMultiplier = mult;
+    this.slowTimer = duration;
+  }
+
   shouldSplit(): boolean {
     return this.def.splits === true && !this.hasSplit && this.hp <= this.def.hp * 0.5 && this.hp > 0;
   }
@@ -575,13 +761,20 @@ export class EnemyEntity {
       return true;
     }
 
+    if (this.slowTimer > 0) {
+      this.slowTimer -= dt;
+      if (this.slowTimer <= 0) {
+        this.slowMultiplier = 1.0;
+      }
+    }
+
     this.prevPos.copyFrom(this.mesh.position);
 
     const target = this.waypoints[this.waypointIndex];
     const dir = target.subtract(this.mesh.position);
     dir.y = 0;
     const dist = dir.length();
-    const step = this.speed * dt;
+    const step = this.speed * this.slowMultiplier * dt;
 
     if (dist <= step) {
       this.mesh.position.x = target.x;

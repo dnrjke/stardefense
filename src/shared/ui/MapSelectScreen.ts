@@ -9,6 +9,14 @@ const ACT_TITLES: Record<number, { title: string; subtitle: string }> = {
     title: 'ACT 2 — 겨울 대삼각',
     subtitle: '오리온 팔의 밝은 별들이 차례로 위협받는다',
   },
+  3: {
+    title: 'ACT 3 — 심연의 경계',
+    subtitle: '은하 중심부로 다가갈수록 어둠은 깊어진다',
+  },
+  4: {
+    title: 'ACT 4 — 열적 죽음 (Heat Death)',
+    subtitle: '엔트로피가 우주의 종말을 선언한다',
+  },
 };
 
 export class MapSelectScreen {
@@ -65,7 +73,7 @@ export class MapSelectScreen {
     this.container.appendChild(content);
 
     // Render each act section
-    for (const actNum of [1, 2]) {
+    for (const actNum of [1, 2, 3, 4]) {
       const act = ACT_TITLES[actNum];
       if (!act) continue;
       const actMaps = state.getActMaps(actNum);

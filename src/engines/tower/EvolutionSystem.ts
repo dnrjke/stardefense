@@ -33,6 +33,10 @@ export const EVOLUTION_TREE: Record<string, EvolutionDef> = {
     { targetId: 'red_giant', nameKo: '적색거성', cost: 80, description: '사거리↑ 공속↓' },
     { targetId: 'blue_giant', nameKo: '청색거성', cost: 120, description: '공격력×2' },
   ]},
+  magnetar: { level: 1, paths: [
+    { targetId: 'red_giant', nameKo: '적색거성', cost: 80, description: '사거리↑ 공속↓' },
+    { targetId: 'blue_giant', nameKo: '청색거성', cost: 120, description: '공격력×2' },
+  ]},
   red_giant: { level: 2, paths: [
     { targetId: 'supernova_remnant', nameKo: '초신성 잔해', cost: 60, description: '폭발 후 DoT 영역' },
     { targetId: 'planetary_nebula', nameKo: '행성상 성운', cost: 80, description: '적 방어력-5 디버프' },

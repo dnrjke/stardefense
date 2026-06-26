@@ -14,6 +14,11 @@ export interface GameState {
   totalWaves: number;
   availableTowers: string[];
   speed: SpeedMultiplier;
+  spellGauge: number;
+  spellCooldowns: Record<string, number>;
+  enemiesKilled: number;
+  towersPlaced: number;
+  survivalCycle: number;
 
   setPhase: (phase: GamePhase) => void;
   addIsm: (amount: number) => void;
@@ -22,6 +27,13 @@ export interface GameState {
   nextWave: () => void;
   unlockTower: (id: string) => void;
   cycleSpeed: () => void;
+  addSpellGauge: (amount: number) => void;
+  spendSpellGauge: (amount: number) => boolean;
+  tickCooldowns: (dt: number) => void;
+  startCooldown: (spellId: string, duration: number) => void;
+  incrementEnemiesKilled: () => void;
+  incrementTowersPlaced: () => void;
+  incrementSurvivalCycle: () => void;
   reset: () => void;
 }
 
@@ -38,6 +50,11 @@ export function createGameStore(totalWaves: number) {
     totalWaves,
     availableTowers: ['sol'],
     speed: 1,
+    spellGauge: 0,
+    spellCooldowns: {},
+    enemiesKilled: 0,
+    towersPlaced: 0,
+    survivalCycle: 0,
 
     setPhase: (phase) => set({ phase }),
 
@@ -67,6 +84,36 @@ export function createGameStore(totalWaves: number) {
       return { speed: SPEED_OPTIONS[(idx + 1) % SPEED_OPTIONS.length] };
     }),
 
+    addSpellGauge: (amount) => set((s) => ({
+      spellGauge: Math.min(100, s.spellGauge + amount),
+    })),
+
+    spendSpellGauge: (amount) => {
+      if (get().spellGauge < amount) return false;
+      set((s) => ({ spellGauge: s.spellGauge - amount }));
+      return true;
+    },
+
+    tickCooldowns: (dt) => set((s) => {
+      const cds = { ...s.spellCooldowns };
+      let changed = false;
+      for (const key of Object.keys(cds)) {
+        if (cds[key] > 0) {
+          cds[key] = Math.max(0, cds[key] - dt);
+          changed = true;
+        }
+      }
+      return changed ? { spellCooldowns: cds } : {};
+    }),
+
+    startCooldown: (spellId, duration) => set((s) => ({
+      spellCooldowns: { ...s.spellCooldowns, [spellId]: duration },
+    })),
+
+    incrementEnemiesKilled: () => set((s) => ({ enemiesKilled: s.enemiesKilled + 1 })),
+    incrementTowersPlaced: () => set((s) => ({ towersPlaced: s.towersPlaced + 1 })),
+    incrementSurvivalCycle: () => set((s) => ({ survivalCycle: s.survivalCycle + 1 })),
+
     reset: () => set({
       phase: 'build',
       ism: INITIAL_ISM,
@@ -74,6 +121,11 @@ export function createGameStore(totalWaves: number) {
       currentWave: 0,
       availableTowers: ['sol'],
       speed: 1,
+      spellGauge: 0,
+      spellCooldowns: {},
+      enemiesKilled: 0,
+      towersPlaced: 0,
+      survivalCycle: 0,
     }),
   }));
 }

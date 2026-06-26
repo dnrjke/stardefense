@@ -9,7 +9,7 @@ export interface TowerDef {
   range: number;        // in tiles
   cost: number;         // ISM
   projectileSpeed: number;
-  specialType?: 'betelgeuse' | 'supernova_remnant' | 'planetary_nebula' | 'black_hole' | 'pulsar';
+  specialType?: 'betelgeuse' | 'supernova_remnant' | 'planetary_nebula' | 'black_hole' | 'pulsar' | 'magnetar';
   wavesUntilExplosion?: number;
   noAttack?: boolean;
   armorDebuff?: number;
@@ -164,5 +164,18 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     pulsarInterval: 2.0,
     pulsarKnockback: 0.5,
     pulsarStunDuration: 0.5,
+  },
+  magnetar: {
+    id: 'magnetar',
+    name: 'Magnetar',
+    nameKo: '마그네타',
+    spectralType: 'SGR',
+    ci: -0.15,
+    damage: 20,
+    attackRate: 0.8,
+    range: 4.0,
+    cost: 150,
+    projectileSpeed: 12,
+    specialType: 'magnetar',
   },
 };
