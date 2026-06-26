@@ -571,7 +571,7 @@ export class EnemyEntity {
 
   private waypoints: BABYLON.Vector3[];
   private waypointIndex = 0;
-  private readonly speed: number;
+  speed: number;
   private prevPos: BABYLON.Vector3;
   private nextPos: BABYLON.Vector3;
   private hpBar: BABYLON.Mesh | null = null;

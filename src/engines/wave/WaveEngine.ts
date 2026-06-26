@@ -20,6 +20,7 @@ export class WaveEngine {
   private spawnStates: SpawnState[] = [];
   private active = false;
   private allSpawned = false;
+  speedMultiplier = 1;
 
   onEnemyKilled: ((enemy: EnemyEntity) => void) | null = null;
   onEnemyReachedEnd: ((enemy: EnemyEntity) => void) | null = null;
@@ -65,6 +66,9 @@ export class WaveEngine {
         if (def) {
           const waypoints = this.paths[ss.pathIndex] ?? this.paths[0];
           const enemy = new EnemyEntity(this.scene, def, waypoints);
+          if (this.speedMultiplier !== 1) {
+            enemy.speed *= this.speedMultiplier;
+          }
           this.enemies.push(enemy);
         }
         ss.remaining--;
@@ -106,14 +110,44 @@ export class WaveEngine {
 
   killEnemy(enemy: EnemyEntity, damage: number): boolean {
     const wasSplitter = enemy.def.splits === true && !enemy.hasSplit;
+    const deathPos = enemy.position.clone();
     const killed = enemy.takeDamage(damage);
     if (killed) {
       if (wasSplitter && enemy.hasSplit) {
         this.spawnSplitCopies(enemy);
       }
+      this.spawnDeathEffect(deathPos);
       this.onEnemyKilled?.(enemy);
     }
     return killed;
+  }
+
+  private spawnDeathEffect(pos: BABYLON.Vector3) {
+    const sphere = BABYLON.MeshBuilder.CreateSphere('deathFx', { diameter: 0.3, segments: 6 }, this.scene);
+    sphere.position.copyFrom(pos);
+    sphere.position.y = 0.3;
+    const mat = new BABYLON.StandardMaterial('deathFxMat', this.scene);
+    mat.emissiveColor = new BABYLON.Color3(1, 0.6, 0.2);
+    mat.disableLighting = true;
+    mat.alpha = 0.8;
+    sphere.material = mat;
+    sphere.isPickable = false;
+
+    const scaleAnim = new BABYLON.Animation('deathScale', 'scaling', 30, BABYLON.Animation.ANIMATIONTYPE_VECTOR3, BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
+    scaleAnim.setKeys([
+      { frame: 0, value: new BABYLON.Vector3(1, 1, 1) },
+      { frame: 8, value: new BABYLON.Vector3(3, 3, 3) },
+    ]);
+    const alphaAnim = new BABYLON.Animation('deathAlpha', 'material.alpha', 30, BABYLON.Animation.ANIMATIONTYPE_FLOAT, BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
+    alphaAnim.setKeys([
+      { frame: 0, value: 0.8 },
+      { frame: 8, value: 0 },
+    ]);
+    sphere.animations = [scaleAnim, alphaAnim];
+    this.scene.beginAnimation(sphere, 0, 8, false, 1, () => {
+      mat.dispose();
+      sphere.dispose();
+    });
   }
 
   private spawnSplitCopies(parent: EnemyEntity) {

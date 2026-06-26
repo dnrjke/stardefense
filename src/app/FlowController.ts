@@ -248,8 +248,12 @@ export class FlowController {
     this.camera.lowerRadiusLimit = camDist;
     this.camera.upperRadiusLimit = camDist;
 
+    const env = config.environment ? MAP_ENVIRONMENTS[config.environment] : undefined;
+    const ismMult = env?.ismMultiplier ?? 1;
+
     // Create engines
     this.waveEngine = new WaveEngine(this.scene, paths);
+    this.waveEngine.speedMultiplier = env?.speedMultiplier ?? 1;
     this.towerEngine = new TowerEngine(this.scene, this.mapEngine);
     this.nebulaEngine = new NebulaEngine(this.scene, this.mapEngine);
     this.spellEngine = new SpellEngine();
@@ -258,9 +262,6 @@ export class FlowController {
     const totalWaves = config.isSurvival ? 9999 : config.waves.length;
     this.gameStore = createGameStore(totalWaves);
     const store = this.gameStore;
-
-    const env = config.environment ? MAP_ENVIRONMENTS[config.environment] : undefined;
-    const ismMult = env?.ismMultiplier ?? 1;
 
     // Set available towers from config
     for (const tid of config.availableTowers) {
@@ -272,6 +273,8 @@ export class FlowController {
     // HUD
     this.hud = new HUD(store);
     this.hud.availableNebulae = config.availableNebulae ?? [];
+    this.hud.currentWaves = config.waves;
+    this.hud.isSurvival = config.isSurvival ?? false;
     this.radialMenu = new RadialMenu();
     this.fixedStep = new FixedTimestep();
 
@@ -477,7 +480,8 @@ export class FlowController {
 
         const def = TOWER_DEFS[towerId];
         if (!def) return;
-        if (!store.getState().spendIsm(def.cost)) return;
+        const costMult = env?.towerCostMultiplier ?? 1;
+        if (!store.getState().spendIsm(Math.round(def.cost * costMult))) return;
 
         const placed = this.towerEngine!.placeTower(towerId, meta.row, meta.col);
         if (placed) {
