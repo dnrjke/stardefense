@@ -117,12 +117,13 @@ void main() {
     float f = fbm(c * 3.5 + uTime * 0.03);
     float darkness = f * smoothstep(1.0, 0.2, dist);
 
-    vec3 col = uColor * darkness * 0.6;
-    vec3 edgeGlow = vec3(0.3, 0.15, 0.08) * smoothstep(0.5, 0.9, dist) * (1.0 - smoothstep(0.9, 1.0, dist)) * 0.4;
+    vec3 col = uColor * darkness * 1.2;
+    vec3 edgeGlow = vec3(0.5, 0.25, 0.12) * smoothstep(0.4, 0.85, dist) * (1.0 - smoothstep(0.85, 1.0, dist)) * 0.8;
     col += edgeGlow;
 
-    float alpha = darkness * 0.5 * smoothstep(1.0, 0.7, dist);
-    alpha = max(alpha, length(edgeGlow) * 0.8);
+    float alpha = darkness * 0.7 * smoothstep(1.0, 0.5, dist);
+    alpha = max(alpha, 0.15);
+    alpha = max(alpha, length(edgeGlow) * 1.2);
     gl_FragColor = vec4(col, alpha);
 }
 `;

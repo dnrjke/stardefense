@@ -1,5 +1,11 @@
 import type { CampaignStore, MapInfo } from '@/app/store/CampaignStore';
 
+/** Detect mobile landscape for responsive layout */
+function isMobileLandscape(): boolean {
+  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  return hasTouch && window.innerHeight <= 500 && window.innerWidth > window.innerHeight;
+}
+
 const ACT_TITLES: Record<number, { title: string; subtitle: string }> = {
   1: {
     title: 'ACT 1 — 태양 근방',
@@ -68,8 +74,9 @@ export class MapSelectScreen {
     this.addStarParticles(bg);
 
     // Main content wrapper
+    const mob = isMobileLandscape();
     const content = document.createElement('div');
-    content.style.cssText = 'position:relative;z-index:1;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;overflow-y:auto;padding:40px 0;';
+    content.style.cssText = `position:relative;z-index:1;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:${mob ? '16px 0' : '40px 0'};`;
     this.container.appendChild(content);
 
     // Render each act section
@@ -80,37 +87,38 @@ export class MapSelectScreen {
       if (actMaps.length === 0) continue;
 
       const actSection = document.createElement('div');
-      actSection.style.cssText = 'display:flex;flex-direction:column;align-items:center;margin-bottom:36px;';
+      actSection.style.cssText = `display:flex;flex-direction:column;align-items:center;margin-bottom:${mob ? 16 : 36}px;`;
 
       // Act title
       const titleBlock = document.createElement('div');
-      titleBlock.style.cssText = 'text-align:center;margin-bottom:28px;';
+      titleBlock.style.cssText = `text-align:center;margin-bottom:${mob ? 12 : 28}px;`;
 
       const title = document.createElement('div');
       title.textContent = act.title;
-      title.style.cssText = 'font-size:24px;font-weight:bold;letter-spacing:6px;color:#c8d8ff;text-shadow:0 0 20px rgba(100,140,255,0.4);margin-bottom:8px;';
+      title.style.cssText = `font-size:${mob ? 16 : 24}px;font-weight:bold;letter-spacing:${mob ? 3 : 6}px;color:#c8d8ff;text-shadow:0 0 20px rgba(100,140,255,0.4);margin-bottom:${mob ? 4 : 8}px;`;
       titleBlock.appendChild(title);
 
       const subtitle = document.createElement('div');
       subtitle.textContent = `"${act.subtitle}"`;
-      subtitle.style.cssText = 'font-size:13px;color:#6678aa;font-style:italic;letter-spacing:2px;';
+      subtitle.style.cssText = `font-size:${mob ? 11 : 13}px;color:#6678aa;font-style:italic;letter-spacing:${mob ? 1 : 2}px;`;
       titleBlock.appendChild(subtitle);
 
       actSection.appendChild(titleBlock);
 
-      // Map path container
+      // Map path container — horizontally scrollable on mobile
       const pathContainer = document.createElement('div');
-      pathContainer.style.cssText = 'display:flex;align-items:center;gap:0;position:relative;';
+      pathContainer.style.cssText = `display:flex;align-items:center;gap:0;position:relative;${mob ? 'overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:90vw;padding:4px 8px;' : ''}`;
 
+      const connectorW = mob ? 30 : 60;
       for (let i = 0; i < actMaps.length; i++) {
         const map = actMaps[i];
-        const node = this.createMapNode(map, selected === map.id);
+        const node = this.createMapNode(map, selected === map.id, mob);
         pathContainer.appendChild(node);
 
         if (i < actMaps.length - 1) {
           const connector = document.createElement('div');
           const nextUnlocked = actMaps[i + 1].unlocked;
-          connector.style.cssText = `width:60px;height:2px;background:${nextUnlocked ? 'linear-gradient(to right, #4466aa, #4466aa)' : 'linear-gradient(to right, #223, #1a1a2a)'};margin:0 -1px;flex-shrink:0;position:relative;top:-14px;`;
+          connector.style.cssText = `width:${connectorW}px;height:2px;background:${nextUnlocked ? 'linear-gradient(to right, #4466aa, #4466aa)' : 'linear-gradient(to right, #223, #1a1a2a)'};margin:0 -1px;flex-shrink:0;position:relative;top:-14px;`;
           if (nextUnlocked) {
             connector.style.boxShadow = '0 0 8px rgba(68,102,170,0.4)';
           }
@@ -124,18 +132,18 @@ export class MapSelectScreen {
 
     // Description panel
     const descPanel = document.createElement('div');
-    descPanel.style.cssText = 'width:420px;min-height:60px;background:rgba(10,10,30,0.8);border:1px solid #334;border-radius:8px;padding:16px 24px;text-align:center;margin-bottom:32px;';
+    descPanel.style.cssText = `width:${mob ? '85vw' : '420px'};min-height:${mob ? 40 : 60}px;background:rgba(10,10,30,0.8);border:1px solid #334;border-radius:8px;padding:${mob ? '10px 14px' : '16px 24px'};text-align:center;margin-bottom:${mob ? 16 : 32}px;`;
 
     if (selected && state.maps[selected]) {
       const m = state.maps[selected];
       const descText = document.createElement('div');
       descText.textContent = m.description;
-      descText.style.cssText = 'font-size:13px;color:#8899bb;line-height:1.6;';
+      descText.style.cssText = `font-size:${mob ? 11 : 13}px;color:#8899bb;line-height:1.6;`;
       descPanel.appendChild(descText);
     } else {
       const hint = document.createElement('div');
       hint.textContent = '맵을 선택하세요';
-      hint.style.cssText = 'font-size:13px;color:#445;';
+      hint.style.cssText = `font-size:${mob ? 11 : 13}px;color:#445;`;
       descPanel.appendChild(hint);
     }
 
@@ -145,7 +153,7 @@ export class MapSelectScreen {
     if (selected && state.maps[selected]?.unlocked) {
       const startBtn = document.createElement('button');
       startBtn.textContent = 'START';
-      startBtn.style.cssText = 'background:rgba(40,60,120,0.6);color:#aaccff;border:2px solid #4466aa;padding:14px 48px;cursor:pointer;font-family:monospace;font-size:18px;font-weight:bold;border-radius:6px;letter-spacing:4px;transition:all 0.2s;';
+      startBtn.style.cssText = `background:rgba(40,60,120,0.6);color:#aaccff;border:2px solid #4466aa;padding:${mob ? '12px 36px' : '14px 48px'};cursor:pointer;font-family:monospace;font-size:${mob ? 15 : 18}px;font-weight:bold;border-radius:6px;letter-spacing:${mob ? 2 : 4}px;transition:all 0.2s;min-height:${mob ? '48px' : 'auto'};`;
       startBtn.onmouseenter = () => {
         startBtn.style.background = 'rgba(60,90,180,0.7)';
         startBtn.style.boxShadow = '0 0 24px rgba(68,102,170,0.5)';
@@ -163,11 +171,12 @@ export class MapSelectScreen {
     }
   }
 
-  private createMapNode(map: MapInfo, isSelected: boolean): HTMLDivElement {
+  private createMapNode(map: MapInfo, isSelected: boolean, mob = false): HTMLDivElement {
     const node = document.createElement('div');
-    node.style.cssText = 'display:flex;flex-direction:column;align-items:center;cursor:pointer;position:relative;';
+    node.style.cssText = 'display:flex;flex-direction:column;align-items:center;cursor:pointer;position:relative;flex-shrink:0;';
 
-    // Map circle
+    // Map circle — smaller on mobile
+    const circleSize = mob ? 52 : 72;
     const circle = document.createElement('div');
     let borderColor = '#334';
     let bgColor = 'rgba(10,10,30,0.8)';
@@ -195,7 +204,7 @@ export class MapSelectScreen {
       bgColor = 'rgba(8,8,16,0.9)';
     }
 
-    circle.style.cssText = `width:72px;height:72px;border-radius:50%;border:2px solid ${borderColor};background:${bgColor};display:flex;align-items:center;justify-content:center;flex-direction:column;transition:all 0.2s;box-shadow:${glowShadow};margin-bottom:10px;`;
+    circle.style.cssText = `width:${circleSize}px;height:${circleSize}px;border-radius:50%;border:2px solid ${borderColor};background:${bgColor};display:flex;align-items:center;justify-content:center;flex-direction:column;transition:all 0.2s;box-shadow:${glowShadow};margin-bottom:${mob ? 6 : 10}px;`;
 
     if (map.unlocked) {
       circle.onmouseenter = () => {
@@ -215,23 +224,23 @@ export class MapSelectScreen {
     // Icon content inside circle
     if (!map.unlocked) {
       const lock = document.createElement('div');
-      lock.style.cssText = 'font-size:22px;color:#334;';
+      lock.style.cssText = `font-size:${mob ? 16 : 22}px;color:#334;`;
       lock.innerHTML = '&#x1F512;';
       circle.appendChild(lock);
     } else if (map.completed) {
       const check = document.createElement('div');
-      check.style.cssText = 'font-size:20px;color:#44aa66;';
+      check.style.cssText = `font-size:${mob ? 16 : 20}px;color:#44aa66;`;
       check.innerHTML = '&#x2713;';
       circle.appendChild(check);
 
       const mapLabel = document.createElement('div');
       mapLabel.textContent = map.id.replace(/^map_(\d+)_/, '$1-').toUpperCase();
-      mapLabel.style.cssText = 'font-size:10px;color:#6a8;margin-top:2px;';
+      mapLabel.style.cssText = `font-size:${mob ? 8 : 10}px;color:#6a8;margin-top:2px;`;
       circle.appendChild(mapLabel);
     } else {
       const mapLabel = document.createElement('div');
       mapLabel.textContent = map.id.replace(/^map_(\d+)_/, '$1-').toUpperCase();
-      mapLabel.style.cssText = `font-size:13px;color:${map.isBoss ? '#cc7755' : '#8899bb'};font-weight:bold;`;
+      mapLabel.style.cssText = `font-size:${mob ? 10 : 13}px;color:${map.isBoss ? '#cc7755' : '#8899bb'};font-weight:bold;`;
       circle.appendChild(mapLabel);
     }
 
@@ -240,7 +249,7 @@ export class MapSelectScreen {
     // Map name
     const name = document.createElement('div');
     name.textContent = map.nameKo;
-    name.style.cssText = `font-size:12px;color:${map.unlocked ? (map.isBoss ? '#cc8866' : '#8899bb') : '#334'};text-align:center;max-width:80px;line-height:1.3;`;
+    name.style.cssText = `font-size:${mob ? 10 : 12}px;color:${map.unlocked ? (map.isBoss ? '#cc8866' : '#8899bb') : '#334'};text-align:center;max-width:${mob ? 60 : 80}px;line-height:1.3;`;
     node.appendChild(name);
 
     // Click handler

@@ -33,13 +33,16 @@ export class NebulaEngine {
 
   getTowerDamageMultiplier(towerPos: BABYLON.Vector3): number {
     let mult = 1.0;
+    let stacks = 0;
     for (const neb of this.nebulae) {
       if (neb.getEffectType() !== 'attack_buff') continue;
       const dx = towerPos.x - neb.position.x;
       const dz = towerPos.z - neb.position.z;
       const rangeSq = neb.getRange() * neb.getRange();
       if (dx * dx + dz * dz <= rangeSq) {
-        mult += neb.getEffectValue();
+        const diminish = 1 / (1 + stacks * 0.5);
+        mult += neb.getEffectValue() * diminish;
+        stacks++;
       }
     }
     return mult;
@@ -47,27 +50,33 @@ export class NebulaEngine {
 
   getEnemySpeedMultiplier(enemyPos: BABYLON.Vector3): number {
     let mult = 1.0;
+    let stacks = 0;
     for (const neb of this.nebulae) {
       if (neb.getEffectType() !== 'slow') continue;
       const dx = enemyPos.x - neb.position.x;
       const dz = enemyPos.z - neb.position.z;
       const rangeSq = neb.getRange() * neb.getRange();
       if (dx * dx + dz * dz <= rangeSq) {
-        mult *= (1.0 - neb.getEffectValue());
+        const diminish = 1 / (1 + stacks * 0.5);
+        mult *= (1.0 - neb.getEffectValue() * diminish);
+        stacks++;
       }
     }
-    return mult;
+    return Math.max(mult, 0.2);
   }
 
   getEnemyArmorReduction(enemyPos: BABYLON.Vector3): number {
     let reduction = 0;
+    let stacks = 0;
     for (const neb of this.nebulae) {
       if (neb.getEffectType() !== 'armor_debuff') continue;
       const dx = enemyPos.x - neb.position.x;
       const dz = enemyPos.z - neb.position.z;
       const rangeSq = neb.getRange() * neb.getRange();
       if (dx * dx + dz * dz <= rangeSq) {
-        reduction += neb.getEffectValue();
+        const diminish = 1 / (1 + stacks * 0.5);
+        reduction += neb.getEffectValue() * diminish;
+        stacks++;
       }
     }
     return reduction;

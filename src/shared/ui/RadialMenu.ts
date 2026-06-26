@@ -7,6 +7,12 @@ export interface RadialMenuItem {
   disabled?: boolean;
 }
 
+/** Detect mobile landscape for touch-friendly sizing */
+function isMobileLandscape(): boolean {
+  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  return hasTouch && window.innerHeight <= 500 && window.innerWidth > window.innerHeight;
+}
+
 export class RadialMenu {
   private container: HTMLDivElement;
   private visible = false;
@@ -29,7 +35,20 @@ export class RadialMenu {
     this.container.style.pointerEvents = 'auto';
     this.container.innerHTML = '';
 
-    // Backdrop (click to close)
+    const mob = isMobileLandscape();
+    const btnSize = mob ? 48 : this.btnSize;
+    const radius = mob ? 62 : this.radius;
+    const fontSize = mob ? 11 : 10;
+    const ringSize = mob ? 64 : 56;
+
+    // Clamp position so menu does not overflow viewport on mobile
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const margin = radius + btnSize / 2 + 4;
+    const cx = Math.max(margin, Math.min(vw - margin, screenX));
+    const cy = Math.max(margin, Math.min(vh - margin, screenY));
+
+    // Backdrop (click/tap to close)
     const backdrop = document.createElement('div');
     backdrop.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
     backdrop.onclick = (e) => {
@@ -41,7 +60,8 @@ export class RadialMenu {
 
     // Center ring indicator
     const ring = document.createElement('div');
-    ring.style.cssText = `position:absolute;left:${screenX - 28}px;top:${screenY - 28}px;width:56px;height:56px;border:2px solid rgba(100,120,200,0.5);border-radius:50%;pointer-events:none;`;
+    const ringHalf = ringSize / 2;
+    ring.style.cssText = `position:absolute;left:${cx - ringHalf}px;top:${cy - ringHalf}px;width:${ringSize}px;height:${ringSize}px;border:2px solid rgba(100,120,200,0.5);border-radius:50%;pointer-events:none;`;
     this.container.appendChild(ring);
 
     // Buttons arranged in circle
@@ -51,20 +71,20 @@ export class RadialMenu {
     for (let i = 0; i < count; i++) {
       const item = items[i];
       const angle = startAngle + (2 * Math.PI * i) / count;
-      const bx = screenX + Math.cos(angle) * this.radius - this.btnSize / 2;
-      const by = screenY + Math.sin(angle) * this.radius - this.btnSize / 2;
+      const bx = cx + Math.cos(angle) * radius - btnSize / 2;
+      const by = cy + Math.sin(angle) * radius - btnSize / 2;
 
       const btn = document.createElement('button');
       btn.textContent = item.label;
       btn.style.cssText = `
         position:absolute;
         left:${bx}px;top:${by}px;
-        width:${this.btnSize}px;height:${this.btnSize}px;
+        width:${btnSize}px;height:${btnSize}px;
         border-radius:50%;
         border:2px solid ${item.color};
         background:rgba(10,10,30,0.85);
         color:${item.disabled ? '#555' : '#ddf'};
-        font-family:monospace;font-size:10px;
+        font-family:monospace;font-size:${fontSize}px;
         cursor:${item.disabled ? 'not-allowed' : 'pointer'};
         display:flex;align-items:center;justify-content:center;
         pointer-events:auto;

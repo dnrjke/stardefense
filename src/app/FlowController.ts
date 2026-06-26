@@ -16,8 +16,9 @@ import { createMap1_1, createMap1_2, createMap1_3, createMap1_B, createMap2_1, c
 import { MAP_1_1_WAVES, MAP_1_2_WAVES, MAP_1_3_WAVES, MAP_1_B_WAVES, MAP_2_1_WAVES, MAP_2_2_WAVES, MAP_2_3_WAVES, MAP_2_B_WAVES, MAP_3_1_WAVES, MAP_3_2_WAVES, MAP_3_3_WAVES, MAP_3_B_WAVES, MAP_4_1_WAVES, MAP_4_2_WAVES, MAP_4_3_WAVES, MAP_4_B_WAVES } from '@/shared/data/WaveData';
 import { MAP_ENVIRONMENTS } from '@/shared/data/MapEnvironment';
 import { SpellEngine } from '@/engines/spell/SpellEngine';
-import { TOWER_DEFS } from '@/shared/data/TowerData';
-import { getEvolutions } from '@/engines/tower/EvolutionSystem';
+import { TOWER_DEFS, type TowerDef } from '@/shared/data/TowerData';
+import { ciToRgb } from '@/shared/data/ColorUtil';
+import { getEvolutions, getEvolutionCost } from '@/engines/tower/EvolutionSystem';
 import type { MapDef } from '@/shared/data/MapData';
 import type { WaveDef } from '@/shared/data/WaveData';
 import type { TowerEntity } from '@/engines/tower/TowerEntity';
@@ -186,6 +187,13 @@ export class FlowController {
   private currentMapId: string | null = null;
   private screenState: ScreenState = 'mapSelect';
 
+  // Placement preview state
+  private previewMesh: BABYLON.Mesh | null = null;
+  private previewRangeDisc: BABYLON.Mesh | null = null;
+  private previewTowerId: string | null = null;
+  private previewRow = -1;
+  private previewCol = -1;
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
 
@@ -275,11 +283,21 @@ export class FlowController {
     this.hud.availableNebulae = config.availableNebulae ?? [];
     this.hud.currentWaves = config.waves;
     this.hud.isSurvival = config.isSurvival ?? false;
+    this.hud.render();
     this.radialMenu = new RadialMenu();
     this.fixedStep = new FixedTimestep();
 
     // Wire radial menu
     this.radialMenu.onSelect = (itemId) => {
+      if (itemId === 'confirm_place') {
+        this.confirmPlacement();
+        return;
+      }
+      if (itemId === 'cancel_place') {
+        this.clearPreview();
+        return;
+      }
+
       if (!this.selectedTower) return;
       if (itemId === 'sell') {
         const refund = this.towerEngine!.sellTower(this.selectedTower);
@@ -290,8 +308,11 @@ export class FlowController {
         const evoDef = getEvolutions(this.selectedTower.def.id);
         if (evoDef) {
           const path = evoDef.paths.find(p => p.targetId === evoId);
-          if (path && store.getState().spendIsm(path.cost)) {
-            this.towerEngine!.evolveTower(this.selectedTower, evoId);
+          if (path) {
+            const dynamicCost = getEvolutionCost(this.selectedTower.def, path);
+            if (store.getState().spendIsm(dynamicCost)) {
+              this.towerEngine!.evolveTower(this.selectedTower, evoId);
+            }
           }
         }
         this.hud!.render();
@@ -301,6 +322,7 @@ export class FlowController {
 
     this.radialMenu.onClose = () => {
       this.selectedTower = null;
+      this.clearPreview();
     };
 
     // Wire betelgeuse explosion
@@ -317,6 +339,7 @@ export class FlowController {
           this.waveEngine!.killEnemy(enemy, explosionDamage);
         }
       }
+      this.spawnExplosionEffect(tower.mesh.position, explosionRange);
     };
 
     // Wire game logic
@@ -347,6 +370,14 @@ export class FlowController {
 
       for (const tower of this.towerEngine!.getTowers()) {
         tower.onWaveCompleted();
+      }
+
+      // Check betelgeuse explosions immediately after wave tracking
+      for (const tower of [...this.towerEngine!.getTowers()]) {
+        if (tower.readyToExplode) {
+          this.towerEngine!.onBetelgeuseExplode?.(tower);
+          this.towerEngine!.removeTower(tower);
+        }
       }
 
       // Proxima unlock on map_1_1 wave 2 clear
@@ -448,10 +479,11 @@ export class FlowController {
         const evo = getEvolutions(tower.def.id);
         if (evo) {
           for (const path of evo.paths) {
-            const canAfford = store.getState().ism >= path.cost;
+            const dynamicCost = getEvolutionCost(tower.def, path);
+            const canAfford = store.getState().ism >= dynamicCost;
             menuItems.push({
               id: `evo_${path.targetId}`,
-              label: `${path.nameKo}\n${path.cost}`,
+              label: `${path.nameKo}\n${dynamicCost}`,
               color: '#6f6',
               disabled: !canAfford,
             });
@@ -481,14 +513,12 @@ export class FlowController {
         const def = TOWER_DEFS[towerId];
         if (!def) return;
         const costMult = env?.towerCostMultiplier ?? 1;
-        if (!store.getState().spendIsm(Math.round(def.cost * costMult))) return;
+        const finalCost = Math.round(def.cost * costMult);
+        if (store.getState().ism < finalCost) return;
 
-        const placed = this.towerEngine!.placeTower(towerId, meta.row, meta.col);
-        if (placed) {
-          store.getState().incrementTowersPlaced();
-          this.animateTowerPlacement(placed.mesh);
-        }
-        this.hud!.render();
+        if (!this.mapEngine!.isBuildable(meta.row, meta.col)) return;
+
+        this.showPlacementPreview(towerId, def, meta.row, meta.col, finalCost);
       }
     };
 
@@ -536,6 +566,130 @@ export class FlowController {
     };
   }
 
+  private showPlacementPreview(towerId: string, def: TowerDef, row: number, col: number, cost: number) {
+    this.clearPreview();
+
+    const worldPos = this.mapEngine!.tileToWorld(row, col);
+    const [r, g, b] = ciToRgb(def.ci);
+    const color = new BABYLON.Color3(r, g, b);
+
+    const ghostMat = new BABYLON.StandardMaterial('previewMat', this.scene);
+    ghostMat.diffuseColor = color;
+    ghostMat.emissiveColor = color.scale(0.6);
+    ghostMat.alpha = 0.5;
+    ghostMat.specularColor = BABYLON.Color3.Black();
+
+    this.previewMesh = BABYLON.MeshBuilder.CreateSphere('previewTower', {
+      diameter: 0.6,
+      segments: 16,
+    }, this.scene);
+    this.previewMesh.position.copyFrom(worldPos);
+    this.previewMesh.position.y = 0.35;
+    this.previewMesh.material = ghostMat;
+    this.previewMesh.isPickable = false;
+
+    const pulse = new BABYLON.Animation('previewPulse', 'scaling', 30,
+      BABYLON.Animation.ANIMATIONTYPE_VECTOR3, BABYLON.Animation.ANIMATIONLOOPMODE_CYCLE);
+    pulse.setKeys([
+      { frame: 0, value: new BABYLON.Vector3(0.9, 0.9, 0.9) },
+      { frame: 15, value: new BABYLON.Vector3(1.1, 1.1, 1.1) },
+      { frame: 30, value: new BABYLON.Vector3(0.9, 0.9, 0.9) },
+    ]);
+    this.previewMesh.animations = [pulse];
+    this.scene.beginAnimation(this.previewMesh, 0, 30, true);
+
+    const rangeMat = new BABYLON.StandardMaterial('previewRangeMat', this.scene);
+    rangeMat.diffuseColor = color.scale(0.2);
+    rangeMat.emissiveColor = color.scale(0.1);
+    rangeMat.alpha = 0.35;
+    rangeMat.specularColor = BABYLON.Color3.Black();
+
+    this.previewRangeDisc = BABYLON.MeshBuilder.CreateDisc('previewRange', {
+      radius: def.range,
+      tessellation: 48,
+    }, this.scene);
+    this.previewRangeDisc.rotation.x = Math.PI / 2;
+    this.previewRangeDisc.position.copyFrom(worldPos);
+    this.previewRangeDisc.position.y = 0.006;
+    this.previewRangeDisc.material = rangeMat;
+    this.previewRangeDisc.isPickable = false;
+
+    this.previewTowerId = towerId;
+    this.previewRow = row;
+    this.previewCol = col;
+
+    const screenPos = this.radialMenu!.worldToScreen(
+      new BABYLON.Vector3(worldPos.x, 0.35, worldPos.z), this.scene, this.engine,
+    );
+    this.radialMenu!.show(screenPos.x, screenPos.y, [
+      { id: 'confirm_place', label: `배치\n-${cost}`, color: '#6f6' },
+      { id: 'cancel_place', label: '취소', color: '#f66' },
+    ]);
+  }
+
+  private confirmPlacement() {
+    if (!this.previewTowerId || !this.gameStore || !this.towerEngine) return;
+
+    const def = TOWER_DEFS[this.previewTowerId];
+    if (!def) { this.clearPreview(); return; }
+
+    const config = MAP_CONFIGS[this.currentMapId!];
+    const env = config?.environment ? MAP_ENVIRONMENTS[config.environment] : undefined;
+    const costMult = env?.towerCostMultiplier ?? 1;
+    const finalCost = Math.round(def.cost * costMult);
+
+    if (!this.gameStore.getState().spendIsm(finalCost)) { this.clearPreview(); return; }
+
+    const placed = this.towerEngine.placeTower(this.previewTowerId, this.previewRow, this.previewCol);
+    if (placed) {
+      this.gameStore.getState().incrementTowersPlaced();
+      this.animateTowerPlacement(placed.mesh);
+    } else {
+      this.gameStore.getState().addIsm(finalCost);
+    }
+    this.clearPreview();
+    this.hud!.render();
+  }
+
+  private spawnExplosionEffect(pos: BABYLON.Vector3, radius: number) {
+    const ring = BABYLON.MeshBuilder.CreateDisc('explosion', {
+      radius: 0.1,
+      tessellation: 48,
+    }, this.scene);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(pos.x, 0.02, pos.z);
+    const mat = new BABYLON.StandardMaterial('explosionMat', this.scene);
+    mat.diffuseColor = new BABYLON.Color3(1, 0.4, 0.1);
+    mat.emissiveColor = new BABYLON.Color3(1, 0.3, 0.05);
+    mat.alpha = 0.8;
+    mat.specularColor = BABYLON.Color3.Black();
+    ring.material = mat;
+
+    const scaleAnim = new BABYLON.Animation('explodeScale', 'scaling', 30,
+      BABYLON.Animation.ANIMATIONTYPE_VECTOR3, BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
+    const target = radius * 2;
+    scaleAnim.setKeys([
+      { frame: 0, value: new BABYLON.Vector3(1, 1, 1) },
+      { frame: 15, value: new BABYLON.Vector3(target, target, target) },
+    ]);
+    const alphaAnim = new BABYLON.Animation('explodeAlpha', 'material.alpha', 30,
+      BABYLON.Animation.ANIMATIONTYPE_FLOAT, BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
+    alphaAnim.setKeys([
+      { frame: 0, value: 0.8 },
+      { frame: 15, value: 0 },
+    ]);
+    ring.animations = [scaleAnim, alphaAnim];
+    this.scene.beginAnimation(ring, 0, 15, false, 1, () => ring.dispose());
+  }
+
+  private clearPreview() {
+    if (this.previewMesh) { this.previewMesh.dispose(); this.previewMesh = null; }
+    if (this.previewRangeDisc) { this.previewRangeDisc.dispose(); this.previewRangeDisc = null; }
+    this.previewTowerId = null;
+    this.previewRow = -1;
+    this.previewCol = -1;
+  }
+
   private animateTowerPlacement(mesh: BABYLON.Mesh) {
     const original = mesh.scaling.clone();
     mesh.scaling.setAll(0);
@@ -577,6 +731,7 @@ export class FlowController {
 
   private cleanupGameplay() {
     this.scene.onPointerDown = undefined;
+    this.clearPreview();
 
     if (this.storeUnsub) {
       this.storeUnsub();

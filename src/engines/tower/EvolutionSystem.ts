@@ -47,13 +47,24 @@ export const EVOLUTION_TREE: Record<string, EvolutionDef> = {
   ]},
 };
 
+export function getEvolutionCost(baseDef: TowerDef, path: EvolutionPath): number {
+  const costRatio = baseDef.cost / 50;
+  return Math.round(path.cost * costRatio);
+}
+
 export function computeEvolvedDef(baseDef: TowerDef, targetId: string): TowerDef {
   const target = TOWER_DEFS[targetId];
   if (!target) return baseDef;
 
+  const blendCi = (baseDef.ci + target.ci) / 2;
+
   if (targetId === 'red_giant') {
     return {
       ...target,
+      id: `${baseDef.id}_red_giant`,
+      name: `${baseDef.name} (Red Giant)`,
+      nameKo: `${baseDef.nameKo} 적색거성`,
+      ci: baseDef.ci * 0.3 + target.ci * 0.7,
       damage: baseDef.damage,
       attackRate: baseDef.attackRate * 0.6,
       range: baseDef.range * 1.5,
@@ -63,10 +74,30 @@ export function computeEvolvedDef(baseDef: TowerDef, targetId: string): TowerDef
   if (targetId === 'blue_giant') {
     return {
       ...target,
+      id: `${baseDef.id}_blue_giant`,
+      name: `${baseDef.name} (Blue Giant)`,
+      nameKo: `${baseDef.nameKo} 청색거성`,
+      ci: baseDef.ci * 0.3 + target.ci * 0.7,
       damage: baseDef.damage * 2,
       attackRate: baseDef.attackRate,
       range: baseDef.range,
       projectileSpeed: baseDef.projectileSpeed,
+    };
+  }
+  if (targetId === 'supernova_remnant' || targetId === 'planetary_nebula') {
+    return {
+      ...target,
+      ci: blendCi,
+      range: Math.max(target.range, baseDef.range * 0.8),
+    };
+  }
+  if (targetId === 'black_hole') {
+    return { ...target };
+  }
+  if (targetId === 'pulsar') {
+    return {
+      ...target,
+      range: Math.max(target.range, baseDef.range * 0.7),
     };
   }
   return target;

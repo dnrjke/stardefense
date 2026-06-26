@@ -210,6 +210,10 @@ export class TowerEngine {
     return true;
   }
 
+  removeTower(tower: TowerEntity) {
+    this.removeTowerInternal(tower);
+  }
+
   private removeTowerInternal(tower: TowerEntity) {
     const idx = this.towers.indexOf(tower);
     if (idx === -1) return;

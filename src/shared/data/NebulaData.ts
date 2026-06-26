@@ -42,7 +42,7 @@ export const NEBULA_DEFS: Record<string, NebulaDef> = {
     range: 2.0,
     effect: 'slow',
     effectValue: 0.4,
-    shaderColor: [0.15, 0.08, 0.05],
+    shaderColor: [0.45, 0.22, 0.15],
   },
   ring: {
     id: 'ring',
