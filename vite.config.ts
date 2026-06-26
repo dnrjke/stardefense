@@ -7,4 +7,19 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src'),
     },
   },
+  base: './',
+  build: {
+    outDir: 'dist',
+    assetsInlineLimit: 4096,
+    sourcemap: false,
+    minify: 'esbuild',
+    target: 'es2020',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          babylon: ['@babylonjs/core'],
+        },
+      },
+    },
+  },
 });
