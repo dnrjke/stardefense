@@ -9,7 +9,7 @@ export interface TowerDef {
   range: number;        // in tiles
   cost: number;         // ISM
   projectileSpeed: number;
-  specialType?: 'betelgeuse' | 'supernova_remnant' | 'planetary_nebula' | 'black_hole' | 'pulsar' | 'magnetar';
+  specialType?: 'betelgeuse' | 'supernova_remnant' | 'planetary_nebula' | 'black_hole' | 'pulsar' | 'magnetar' | 'flare_star' | 'binary_system' | 'a_supergiant' | 'pulsating_variable' | 'sgr_repeater';
   wavesUntilExplosion?: number;
   noAttack?: boolean;
   armorDebuff?: number;
@@ -205,5 +205,109 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     projectileSpeed: 12,
     specialType: 'magnetar',
     descriptionKo: '우주에서 가장 강력한 자기장을 지닌 중성자별. 그 자기 펄스는 행성의 지각을 녹일 수 있다.',
+  },
+
+  // Sol Lv2 paths
+  subgiant: {
+    id: 'subgiant', name: 'Subgiant', nameKo: '준거성',
+    spectralType: 'G-IV', ci: 0.8, damage: 0, attackRate: 0, range: 0,
+    cost: 80, projectileSpeed: 8,
+    descriptionKo: '주계열을 떠나 팽창을 시작한 태양형 별. 사거리가 넓어지고 위력이 소폭 증가한다.',
+  },
+  white_dwarf: {
+    id: 'white_dwarf', name: 'White Dwarf', nameKo: '백색왜성',
+    spectralType: 'DA', ci: -0.1, damage: 0, attackRate: 0, range: 0,
+    cost: 100, projectileSpeed: 10,
+    descriptionKo: '초고밀도로 압축된 별의 잔해. 작지만 관통력이 극한에 달한다.',
+  },
+
+  // Proxima Lv2 paths
+  flare_star: {
+    id: 'flare_star', name: 'Flare Star', nameKo: '플레어 성',
+    spectralType: 'M5Ve', ci: 1.82, damage: 0, attackRate: 0, range: 0,
+    cost: 70, projectileSpeed: 10,
+    specialType: 'flare_star',
+    descriptionKo: '격렬한 자기 활동이 주기적 플레어 폭발을 일으킨다.',
+  },
+  binary_system: {
+    id: 'binary_system', name: 'Binary System', nameKo: '연성계',
+    spectralType: 'M5V+M5V', ci: 1.82, damage: 0, attackRate: 0, range: 0,
+    cost: 60, projectileSpeed: 10,
+    specialType: 'binary_system',
+    descriptionKo: '알파 센타우리 삼중성계처럼, 두 별이 서로를 돌며 이중 사격한다.',
+  },
+
+  // Sirius Lv2 paths
+  sirius_b: {
+    id: 'sirius_b', name: 'Sirius B', nameKo: '시리우스 B',
+    spectralType: 'DA2', ci: -0.05, damage: 0, attackRate: 0, range: 0,
+    cost: 100, projectileSpeed: 11,
+    descriptionKo: '시리우스의 동반 백색왜성. 초고밀도 물질의 사격은 어떤 장갑도 관통한다.',
+  },
+  a_supergiant: {
+    id: 'a_supergiant', name: 'A-Supergiant', nameKo: 'A형 초거성',
+    spectralType: 'A1Ia', ci: 0.0, damage: 0, attackRate: 0, range: 0,
+    cost: 120, projectileSpeed: 9,
+    specialType: 'a_supergiant',
+    descriptionKo: '밤하늘에서 가장 밝은 별이 초거성으로 팽창하며 주변 타워를 고무한다.',
+  },
+
+  // Rigel Lv2 paths
+  blue_supergiant: {
+    id: 'blue_supergiant', name: 'Blue Supergiant', nameKo: '청색 초거성',
+    spectralType: 'B0Ia', ci: -0.25, damage: 0, attackRate: 0, range: 0,
+    cost: 130, projectileSpeed: 7,
+    descriptionKo: '태양의 40만 배 광도. 극한의 원샷 — 느리지만 한 발이면 충분하다.',
+  },
+  red_supergiant: {
+    id: 'red_supergiant', name: 'Red Supergiant', nameKo: '적색 초거성',
+    spectralType: 'M2Ia', ci: 1.6, damage: 0, attackRate: 0, range: 0,
+    cost: 100, projectileSpeed: 6, splashRadius: 1.0,
+    descriptionKo: '팽창한 외피가 적을 휩쓸며, 리겔의 화력에 범위 공격이 더해진다.',
+  },
+
+  // Betelgeuse Lv2 paths
+  pre_supernova: {
+    id: 'pre_supernova', name: 'Pre-Supernova', nameKo: '초신성 전조',
+    spectralType: 'M0Ia', ci: 1.7, damage: 0, attackRate: 0, range: 0,
+    cost: 80, projectileSpeed: 8,
+    specialType: 'betelgeuse', wavesUntilExplosion: 3,
+    descriptionKo: '핵의 규소 연소가 시작되었다. 폭발이 임박했으며, 더 강력해졌다.',
+  },
+  pulsating_variable: {
+    id: 'pulsating_variable', name: 'Pulsating Variable', nameKo: '맥동 변광성',
+    spectralType: 'M2Ia-var', ci: 1.5, damage: 0, attackRate: 0, range: 0,
+    cost: 90, projectileSpeed: 0,
+    specialType: 'pulsating_variable', noAttack: true,
+    descriptionKo: '폭발 대신 주기적 에너지 펄스를 선택한 변광성. 지속적인 범위 데미지.',
+  },
+
+  // Wolf-Rayet Lv2 paths
+  wc_type: {
+    id: 'wc_type', name: 'WC-Type', nameKo: 'WC형',
+    spectralType: 'WC7', ci: -0.3, damage: 0, attackRate: 0, range: 0,
+    cost: 100, projectileSpeed: 5, splashRadius: 2.0,
+    descriptionKo: '탄소 풍부 항성풍의 광역 침식. 스플래시 반경이 확대되고 범위 피해가 증가한다.',
+  },
+  wn_type: {
+    id: 'wn_type', name: 'WN-Type', nameKo: 'WN형',
+    spectralType: 'WN4', ci: -0.35, damage: 0, attackRate: 0, range: 0,
+    cost: 110, projectileSpeed: 7, splashRadius: 1.0,
+    descriptionKo: '질소 방출선의 집중된 에너지. 직격 데미지가 크게 증가하고 공속이 빨라진다.',
+  },
+
+  // Magnetar Lv2 paths
+  sgr_repeater: {
+    id: 'sgr_repeater', name: 'SGR Repeater', nameKo: 'SGR 반복체',
+    spectralType: 'SGR-R', ci: -0.15, damage: 0, attackRate: 0, range: 0,
+    cost: 120, projectileSpeed: 15,
+    specialType: 'sgr_repeater',
+    descriptionKo: '주기적으로 감마선 버스트를 방출하는 소프트 감마선 반복체.',
+  },
+  millisecond_pulsar: {
+    id: 'millisecond_pulsar', name: 'Millisecond Pulsar', nameKo: '밀리초 펄서',
+    spectralType: 'MSP', ci: -0.1, damage: 0, attackRate: 0, range: 0,
+    cost: 100, projectileSpeed: 14,
+    descriptionKo: '초당 수백 회 자전하는 극한의 펄서. 약하지만 미친 속도로 사격한다.',
   },
 };

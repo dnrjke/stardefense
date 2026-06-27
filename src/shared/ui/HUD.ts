@@ -4,15 +4,16 @@ import { NEBULA_DEFS } from '@/shared/data/NebulaData';
 import { SPELL_DEFS } from '@/shared/data/SpellData';
 import { ENEMY_DEFS } from '@/shared/data/EnemyData';
 import type { WaveDef } from '@/shared/data/WaveData';
-import { EVOLUTION_TREE } from '@/engines/tower/EvolutionSystem';
+import { EVOLUTION_TREE, getEvolutions } from '@/engines/tower/EvolutionSystem';
 import { ciToRgb } from '@/shared/data/ColorUtil';
 import { createNebulaPreview, createTowerPreview, disposeNebulaPreview } from '@/shared/ui/NebulaPreview';
 
 /** Detect mobile landscape: narrow height + touch support */
 function isMobileLandscape(): boolean {
   const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  // Landscape mobile: height typically <= 500px, width > height
-  return hasTouch && window.innerHeight <= 500 && window.innerWidth > window.innerHeight;
+  const vh = window.visualViewport?.height ?? window.innerHeight;
+  const vw = window.visualViewport?.width ?? window.innerWidth;
+  return hasTouch && vh <= 600 && vw > vh;
 }
 
 /** Safe-area CSS value with fallback */
@@ -46,6 +47,7 @@ export class HUD {
   isSurvival = false;
   isHeatDeath = false;
   activeMutationNames: string[] = [];
+  activeSynergyNames: string[] = [];
   crisisWarning: string | null = null;
   onTowerSelected: ((towerId: string | null) => void) | null = null;
   onNebulaSelected: ((nebulaId: string | null) => void) | null = null;
@@ -92,7 +94,7 @@ export class HUD {
 
     // Left info panel — shows tower/nebula details when selected
     this.infoPanel = document.createElement('div');
-    this.infoPanel.style.cssText = `position:absolute;left:calc(8px + ${safeInset('left')});top:50px;width:${mob ? 140 : 180}px;background:rgba(0,0,10,0.85);border:1px solid #446;border-radius:8px;padding:12px;pointer-events:none;display:none;font-size:${mob ? 10 : 11}px;line-height:1.5;color:#ccd;max-height:calc(100vh - 50px - ${mob ? 56 : 64}px - 16px);overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none;`;
+    this.infoPanel.style.cssText = `position:absolute;left:calc(8px + ${safeInset('left')});top:50px;width:${mob ? 140 : 180}px;background:rgba(0,0,10,0.85);border:1px solid #446;border-radius:8px;padding:12px;pointer-events:auto;display:none;font-size:${mob ? 10 : 11}px;line-height:1.5;color:#ccd;max-height:calc(100vh - 50px - ${mob ? 56 : 64}px - 16px);overflow-y:auto;touch-action:pan-y;scrollbar-width:none;-ms-overflow-style:none;`;
     this.container.appendChild(this.infoPanel);
 
     if (!document.getElementById('hideScrollbarStyle')) {
@@ -174,6 +176,14 @@ export class HUD {
     this.topBar.style.fontSize = mob ? '12px' : '14px';
     this.bottomBar.style.height = mob ? '56px' : '64px';
     this.bottomBar.style.gap = mob ? '4px' : '8px';
+    this.bottomBar.style.paddingBottom = safeInset('bottom');
+    this.startWaveBtn.style.right = `calc(${mob ? '8px' : '16px'} + ${safeInset('right')})`;
+    this.startWaveBtn.style.bottom = `calc(${mob ? '64px' : '76px'} + ${safeInset('bottom')})`;
+    this.spellPanel.style.right = mob ? `calc(8px + ${safeInset('right')})` : '12px';
+    this.spellPanel.style.top = mob ? '38px' : '50px';
+    this.mutationPanel.style.right = mob ? `calc(8px + ${safeInset('right')})` : '12px';
+    this.mutationPanel.style.top = mob ? '140px' : '200px';
+    this.infoPanel.style.maxHeight = `calc(100vh - 50px - ${mob ? 56 : 64}px - 16px)`;
 
     // --- Top bar ---
     this.topBar.innerHTML = '';
@@ -221,6 +231,19 @@ export class HUD {
         this.wavePreview.style.display = 'inline';
         this.topBar.appendChild(this.wavePreview);
       }
+    }
+
+    // Active synergy badges
+    if (this.activeSynergyNames.length > 0) {
+      const synergyBar = document.createElement('div');
+      synergyBar.style.cssText = `display:flex;gap:4px;align-items:center;margin-left:${mob ? 4 : 8}px;flex-shrink:1;overflow:hidden;`;
+      for (const name of this.activeSynergyNames) {
+        const badge = document.createElement('span');
+        badge.textContent = name;
+        badge.style.cssText = `font-size:${mob ? 8 : 9}px;background:rgba(100,80,200,0.4);color:#c8b4ff;border:1px solid #8866cc;border-radius:3px;padding:1px 4px;white-space:nowrap;`;
+        synergyBar.appendChild(badge);
+      }
+      this.topBar.appendChild(synergyBar);
     }
 
     const speedBtn = document.createElement('button');
@@ -382,6 +405,11 @@ export class HUD {
         planetary_nebula: '자동 공격 없음\n범위 내 적 방어력 -5 디버프 오라',
         black_hole: '자동 공격 없음\n반경 내 적 즉사 (보스 포함)',
         pulsar: `자동 공격 없음\n${def.pulsarInterval ?? 2}초 주기 360° 넉백 + ${def.pulsarStunDuration ?? 0.5}초 기절`,
+        flare_star: `통상 사격 + 5초마다 플레어 폭발\n범위 내 전체 적에게 데미지×2`,
+        binary_system: '2연발 사격 (각 발 동일 데미지)\n두 발이 동시에 발사된다',
+        a_supergiant: '통상 사격 + 반경 2.5타일 버프 오라\n주변 아군 타워 데미지 +15%',
+        pulsating_variable: '자동 공격 없음\n3초 주기 범위 2타일 에너지 펄스\n30 데미지',
+        sgr_repeater: `통상 사격 + 10초마다 감마선 버스트\n직선 관통 공격 (데미지×3)`,
       };
       if (def.specialType && specialDescs[def.specialType]) {
         const special = document.createElement('div');
@@ -406,7 +434,7 @@ export class HUD {
       }
 
       // Evolution tree with actual costs
-      const evo = EVOLUTION_TREE[this.selectedTowerId];
+      const evo = getEvolutions(this.selectedTowerId);
       if (evo) {
         const evoDiv = document.createElement('div');
         evoDiv.style.cssText = `font-size:${fsSmall}px;color:#8af;margin-top:6px;border-top:1px solid #335;padding-top:4px;line-height:1.6;`;

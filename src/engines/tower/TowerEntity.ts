@@ -288,6 +288,10 @@ export class TowerEntity {
     return this.def.specialType === 'magnetar' || this.def.specialType === 'pulsar';
   }
 
+  getColor(): BABYLON.Color3 {
+    return this.color;
+  }
+
   advancePulsarTimer(dt: number): boolean {
     if (this.def.specialType !== 'pulsar') return false;
     this.pulsarTimer += dt;

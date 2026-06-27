@@ -3,6 +3,7 @@ import { TowerEntity } from './TowerEntity';
 import { Projectile } from './Projectile';
 import { TOWER_DEFS } from '@/shared/data/TowerData';
 import { computeEvolvedDef, getEvolutions } from './EvolutionSystem';
+import { SynergyEngine, type ActiveSynergy } from '@/engines/synergy/SynergyEngine';
 import type { EnemyEntity } from '@/engines/wave/EnemyEntity';
 import type { MapEngine } from '@/engines/map/MapEngine';
 import type { WaveEngine } from '@/engines/wave/WaveEngine';
@@ -30,6 +31,9 @@ export class TowerEngine {
   private projectiles: Projectile[] = [];
   private nebulaRemnants: NebulaRemnant[] = [];
   private nebulaDebuffs: NebulaDebuff[] = [];
+  private specialTimers = new Map<TowerEntity, number>();
+  private synergyEngine = new SynergyEngine();
+  private activeSynergies: ActiveSynergy[] = [];
 
   onEnemyHit: ((enemy: EnemyEntity, damage: number) => void) | null = null;
   onBetelgeuseExplode: ((tower: TowerEntity) => void) | null = null;
@@ -54,6 +58,61 @@ export class TowerEngine {
 
   fixedUpdate(dt: number, waveEngine: WaveEngine) {
     const enemies = waveEngine.getAliveEnemies();
+
+    // Reset aura buffs from previous frame
+    for (const tower of this.towers) {
+      if ((tower as any)._auraBuffed) {
+        tower.def.damage = (tower as any)._origDamage;
+        (tower as any)._auraBuffed = false;
+      }
+      // Reset synergy buffs from previous frame
+      if ((tower as any)._synergyRateBuff) {
+        tower.def.attackRate = (tower as any)._origAttackRate;
+        (tower as any)._synergyRateBuff = false;
+      }
+      if ((tower as any)._synergyDmgBuff) {
+        tower.def.damage = (tower as any)._origSynDamage;
+        (tower as any)._synergyDmgBuff = false;
+      }
+      if ((tower as any)._binaryRateBuff) {
+        tower.def.attackRate = (tower as any)._origBinaryRate;
+        (tower as any)._binaryRateBuff = false;
+      }
+    }
+
+    // Evaluate synergies
+    this.activeSynergies = this.synergyEngine.evaluate(this.towers);
+
+    // Apply synergy buffs
+    for (const syn of this.activeSynergies) {
+      if (syn.id === 'winter_triangle') {
+        for (const t of syn.affectedTowers) {
+          if (!(t as any)._synergyRateBuff) {
+            (t as any)._origAttackRate = (t as any)._origAttackRate ?? t.def.attackRate;
+            t.def.attackRate = t.def.attackRate * 1.2;
+            (t as any)._synergyRateBuff = true;
+          }
+        }
+      }
+      if (syn.id === 'main_sequence') {
+        for (const t of syn.affectedTowers) {
+          if (!(t as any)._synergyDmgBuff) {
+            (t as any)._origSynDamage = t.def.damage;
+            t.def.damage = Math.round(t.def.damage * 1.1);
+            (t as any)._synergyDmgBuff = true;
+          }
+        }
+      }
+      if (syn.id === 'binary_star') {
+        for (const t of syn.affectedTowers) {
+          if (!(t as any)._binaryRateBuff) {
+            (t as any)._origBinaryRate = (t as any)._origBinaryRate ?? t.def.attackRate;
+            t.def.attackRate = t.def.attackRate * 1.15;
+            (t as any)._binaryRateBuff = true;
+          }
+        }
+      }
+    }
 
     const towersToRemove: TowerEntity[] = [];
 
@@ -109,8 +168,124 @@ export class TowerEngine {
         }
       }
 
+      // ── Flare Star: periodic AoE burst every 5s ──
+      if (tower.def.specialType === 'flare_star') {
+        const t = (this.specialTimers.get(tower) ?? 0) + dt;
+        if (t >= 5.0) {
+          this.specialTimers.set(tower, 0);
+          const flareDmg = tower.def.damage * 2;
+          const rSq = tower.def.range * tower.def.range;
+          for (const enemy of enemies) {
+            if (!enemy.alive) continue;
+            const dx = enemy.position.x - tower.mesh.position.x;
+            const dz = enemy.position.z - tower.mesh.position.z;
+            if (dx * dx + dz * dz <= rSq) {
+              this.onEnemyHit?.(enemy, flareDmg);
+            }
+          }
+        } else {
+          this.specialTimers.set(tower, t);
+        }
+      }
+
+      // ── Pulsating Variable: periodic AoE pulse every 3s ──
+      if (tower.def.specialType === 'pulsating_variable') {
+        const t = (this.specialTimers.get(tower) ?? 0) + dt;
+        if (t >= 3.0) {
+          this.specialTimers.set(tower, 0);
+          const rSq = tower.def.range * tower.def.range;
+          for (const enemy of enemies) {
+            if (!enemy.alive) continue;
+            const dx = enemy.position.x - tower.mesh.position.x;
+            const dz = enemy.position.z - tower.mesh.position.z;
+            if (dx * dx + dz * dz <= rSq) {
+              this.onEnemyHit?.(enemy, tower.def.damage);
+            }
+          }
+        } else {
+          this.specialTimers.set(tower, t);
+        }
+      }
+
+      // ── SGR Repeater: periodic piercing line burst every 10s ──
+      if (tower.def.specialType === 'sgr_repeater') {
+        const t = (this.specialTimers.get(tower) ?? 0) + dt;
+        if (t >= 10.0) {
+          this.specialTimers.set(tower, 0);
+          let target: EnemyEntity | null = null;
+          let minDist = Infinity;
+          const rSq = tower.def.range * tower.def.range;
+          for (const enemy of enemies) {
+            if (!enemy.alive) continue;
+            const dx = enemy.position.x - tower.mesh.position.x;
+            const dz = enemy.position.z - tower.mesh.position.z;
+            const d = dx * dx + dz * dz;
+            if (d <= rSq && d < minDist) { minDist = d; target = enemy; }
+          }
+          if (target) {
+            const dx = target.position.x - tower.mesh.position.x;
+            const dz = target.position.z - tower.mesh.position.z;
+            const len = Math.sqrt(dx * dx + dz * dz);
+            if (len > 0) {
+              const nx = dx / len;
+              const nz = dz / len;
+              const burstDmg = tower.def.damage * 3;
+              const lineWidth = 0.5;
+              const lineWSq = lineWidth * lineWidth;
+              for (const enemy of enemies) {
+                if (!enemy.alive) continue;
+                const ex = enemy.position.x - tower.mesh.position.x;
+                const ez = enemy.position.z - tower.mesh.position.z;
+                const proj = ex * nx + ez * nz;
+                if (proj < 0 || proj > tower.def.range) continue;
+                const perpX = ex - proj * nx;
+                const perpZ = ez - proj * nz;
+                if (perpX * perpX + perpZ * perpZ <= lineWSq) {
+                  this.onEnemyHit?.(enemy, burstDmg);
+                }
+              }
+            }
+          }
+        } else {
+          this.specialTimers.set(tower, t);
+        }
+      }
+
+      // ── A-Supergiant buff aura: +15% damage to towers within 2.5 tiles ──
+      if (tower.def.specialType === 'a_supergiant') {
+        const buffRange = 2.5;
+        const buffRangeSq = buffRange * buffRange;
+        for (const other of this.towers) {
+          if (other === tower) continue;
+          const dx = other.mesh.position.x - tower.mesh.position.x;
+          const dz = other.mesh.position.z - tower.mesh.position.z;
+          if (dx * dx + dz * dz <= buffRangeSq) {
+            if (!(other as any)._auraBuffed) {
+              (other as any)._origDamage = other.def.damage;
+              other.def.damage = Math.round(other.def.damage * 1.15);
+              (other as any)._auraBuffed = true;
+            }
+          }
+        }
+      }
+
       const proj = tower.fixedUpdate(dt, enemies);
-      if (proj) this.projectiles.push(proj);
+      if (proj) {
+        this.projectiles.push(proj);
+        // ── Binary System: fire second projectile ──
+        if (tower.def.specialType === 'binary_system' && proj.target.alive) {
+          const proj2 = new Projectile(
+            this.scene,
+            tower.mesh.position,
+            proj.target,
+            proj.damage,
+            proj.speed,
+            tower.getColor(),
+          );
+          if (tower.def.splashRadius) proj2.splashRadius = tower.def.splashRadius;
+          this.projectiles.push(proj2);
+        }
+      }
     }
 
     for (const t of towersToRemove) {
@@ -250,6 +425,10 @@ export class TowerEngine {
     return this.towers;
   }
 
+  getActiveSynergies(): ActiveSynergy[] {
+    return this.activeSynergies;
+  }
+
   /** Update tower + projectile shader visuals each render frame */
   updateVisuals(dt: number) {
     for (const tower of this.towers) {
@@ -277,5 +456,6 @@ export class TowerEngine {
     this.projectiles = [];
     this.nebulaRemnants = [];
     this.nebulaDebuffs = [];
+    this.specialTimers.clear();
   }
 }

@@ -582,6 +582,7 @@ export class FlowController {
 
     this.hud.onCycleSpeed = () => {
       store.getState().cycleSpeed();
+      this.fixedStep?.resetAccumulator();
       this.hud!.render();
     };
 
@@ -867,7 +868,8 @@ export class FlowController {
       this.camera.viewport.toGlobal(this.engine.getRenderWidth(), this.engine.getRenderHeight()),
     );
     const dpr = this.engine.getHardwareScalingLevel();
-    const screenPos = { x: projected.x * dpr, y: projected.y * dpr };
+    const rect = this.canvas.getBoundingClientRect();
+    const screenPos = { x: projected.x * dpr + rect.left, y: projected.y * dpr + rect.top };
     const el = document.createElement('div');
     el.textContent = `+${amount}`;
     el.style.cssText = `position:fixed;left:${screenPos.x}px;top:${screenPos.y}px;color:#ff4;font-family:monospace;font-size:14px;font-weight:bold;pointer-events:none;z-index:20;text-shadow:0 0 4px rgba(255,255,0,0.5);transition:all 0.5s ease-out;`;
@@ -1032,7 +1034,8 @@ export class FlowController {
     }
 
     const state = this.gameStore.getState();
-    const deltaMs = this.engine.getDeltaTime() * state.speed;
+    const rawDelta = Math.min(this.engine.getDeltaTime(), 50);
+    const deltaMs = rawDelta * state.speed;
     const phase = state.phase;
     const dtSec = deltaMs / 1000;
 
@@ -1040,6 +1043,7 @@ export class FlowController {
       if (phase === 'wave') {
         this.waveEngine!.fixedUpdate(this.fixedStep!.fixedDt);
         this.towerEngine!.fixedUpdate(this.fixedStep!.fixedDt, this.waveEngine!);
+        this.hud!.activeSynergyNames = this.towerEngine!.getActiveSynergies().map(s => s.nameKo);
         if (this.nebulaEngine) {
           const enemies = this.waveEngine!.getAliveEnemies();
           this.nebulaEngine.applyDotDamage(enemies, this.fixedStep!.fixedDt);
