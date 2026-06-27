@@ -2,8 +2,10 @@ import { createStore } from 'zustand/vanilla';
 
 export type GamePhase = 'build' | 'wave' | 'result' | 'gameover' | 'clear';
 
-const SPEED_OPTIONS = [1, 2, 4, 8, 16] as const;
-export type SpeedMultiplier = (typeof SPEED_OPTIONS)[number];
+const SPEED_OPTIONS_DESKTOP = [1, 2, 4, 8, 16] as const;
+const SPEED_OPTIONS_MOBILE = [1, 2, 4] as const;
+const SPEED_OPTIONS: readonly number[] = 'ontouchstart' in globalThis ? SPEED_OPTIONS_MOBILE : SPEED_OPTIONS_DESKTOP;
+export type SpeedMultiplier = 1 | 2 | 4 | 8 | 16;
 
 export interface GameState {
   phase: GamePhase;
@@ -97,7 +99,7 @@ export function createGameStore(totalWaves: number) {
 
     cycleSpeed: () => set((s) => {
       const idx = SPEED_OPTIONS.indexOf(s.speed);
-      return { speed: SPEED_OPTIONS[(idx + 1) % SPEED_OPTIONS.length] };
+      return { speed: SPEED_OPTIONS[(idx + 1) % SPEED_OPTIONS.length] as SpeedMultiplier };
     }),
 
     addSpellGauge: (amount) => set((s) => ({

@@ -68,12 +68,12 @@ BABYLON.Effect.ShadersStore['spellGravityRippleFragmentShader'] = `
     float ringPos = uProgress;
     float ringWidth = 0.04 + 0.02 * uProgress;
     float ring = 1.0 - smoothstep(0.0, ringWidth, abs(dist - ringPos));
-    float innerGlow = 1.0 - smoothstep(0.0, ringWidth * 2.0, abs(dist - ringPos));
+    float innerGlow = 1.0 - smoothstep(0.0, ringWidth * 1.2, abs(dist - ringPos));
     vec3 core = vec3(0.25, 0.375, 1.0);
-    vec3 edge = vec3(0.25, 1.0, 1.0);
+    vec3 edge = vec3(0.2, 0.6, 0.9);
     vec3 col = mix(edge, core, ring);
-    float alpha = (ring * 0.9 + innerGlow * 0.3) * (1.0 - uProgress * 0.9);
-    gl_FragColor = vec4(col * 1.6, alpha);
+    float alpha = (ring * 0.9 + innerGlow * 0.1) * (1.0 - uProgress);
+    gl_FragColor = vec4(col * 1.15, alpha);
   }
 `;
 

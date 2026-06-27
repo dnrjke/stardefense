@@ -1,7 +1,7 @@
 const TICK_RATE = 60;
 const TICK_S = 1 / TICK_RATE;
 const TICK_MS = TICK_S * 1000;
-const MAX_CATCHUP = 20;
+const MAX_CATCHUP = 10;
 
 export class FixedTimestep {
   private accumulator = 0;
@@ -23,6 +23,10 @@ export class FixedTimestep {
     }
 
     return this.accumulator / TICK_MS;
+  }
+
+  resetAccumulator() {
+    this.accumulator = 0;
   }
 
   get tick() { return this.tickCount; }

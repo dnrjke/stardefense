@@ -3,7 +3,9 @@ import type { CampaignStore, MapInfo } from '@/app/store/CampaignStore';
 /** Detect mobile landscape for responsive layout */
 function isMobileLandscape(): boolean {
   const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  return hasTouch && window.innerHeight <= 500 && window.innerWidth > window.innerHeight;
+  const vh = window.visualViewport?.height ?? window.innerHeight;
+  const vw = window.visualViewport?.width ?? window.innerWidth;
+  return hasTouch && vh <= 600 && vw > vh;
 }
 
 const ACT_TITLES: Record<number, { title: string; subtitle: string }> = {

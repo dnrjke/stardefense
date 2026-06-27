@@ -11,7 +11,9 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 function isMobileLandscape(): boolean {
   const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  return hasTouch && window.innerHeight <= 500 && window.innerWidth > window.innerHeight;
+  const vh = window.visualViewport?.height ?? window.innerHeight;
+  const vw = window.visualViewport?.width ?? window.innerWidth;
+  return hasTouch && vh <= 600 && vw > vh;
 }
 
 export class MutationSelectUI {

@@ -10,7 +10,9 @@ export interface RadialMenuItem {
 /** Detect mobile landscape for touch-friendly sizing */
 function isMobileLandscape(): boolean {
   const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  return hasTouch && window.innerHeight <= 500 && window.innerWidth > window.innerHeight;
+  const vh = window.visualViewport?.height ?? window.innerHeight;
+  const vw = window.visualViewport?.width ?? window.innerWidth;
+  return hasTouch && vh <= 600 && vw > vh;
 }
 
 export class RadialMenu {
@@ -125,7 +127,8 @@ export class RadialMenu {
       scene.activeCamera!.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight()),
     );
     const dpr = engine.getHardwareScalingLevel();
-    return { x: projected.x * dpr, y: projected.y * dpr };
+    const rect = engine.getRenderingCanvas()!.getBoundingClientRect();
+    return { x: projected.x * dpr + rect.left, y: projected.y * dpr + rect.top };
   }
 
   dispose() {
