@@ -777,6 +777,9 @@ export class FlowController {
     this.previewRow = row;
     this.previewCol = col;
 
+    // Immediately evaluate synergy preview for ghost placement
+    this.updateSynergyPreview();
+
     const screenPos = this.radialMenu!.worldToScreen(
       new BABYLON.Vector3(worldPos.x, 0.35, worldPos.z), this.scene, this.engine,
     );
@@ -847,6 +850,30 @@ export class FlowController {
     this.previewTowerId = null;
     this.previewRow = -1;
     this.previewCol = -1;
+    // Restore synergy display to current towers only
+    this.updateSynergyPreview();
+  }
+
+  private updateSynergyPreview() {
+    if (!this.towerEngine || !this.hud) return;
+    if (this.previewTowerId) {
+      const def = TOWER_DEFS[this.previewTowerId];
+      if (def) {
+        const preview = this.towerEngine.previewSynergies(def, this.previewRow, this.previewCol);
+        const current = this.towerEngine.evaluateSynergiesOnly();
+        const curIds = new Set(current.map(s => s.id));
+        this.hud.activeSynergyNames = preview.map(s => curIds.has(s.id) ? s.nameKo : `+${s.nameKo}`);
+        this.hud.activeSynergyData = preview.map(s => ({
+          id: s.id, nameKo: s.nameKo, description: s.description,
+          isNew: !curIds.has(s.id),
+        }));
+      }
+    } else {
+      const synergies = this.towerEngine.evaluateSynergiesOnly();
+      this.hud.activeSynergyNames = synergies.map(s => s.nameKo);
+      this.hud.activeSynergyData = synergies.map(s => ({ id: s.id, nameKo: s.nameKo, description: s.description }));
+    }
+    this.hud.render();
   }
 
   private animateTowerPlacement(mesh: BABYLON.Mesh) {
@@ -1052,32 +1079,10 @@ export class FlowController {
       }
     });
 
-    // Update HUD synergy display (once per render frame, not per tick)
+    // Update HUD synergy display from fixedUpdate results (wave phase only)
     if (phase === 'wave') {
       const waveSynergies = this.towerEngine.getActiveSynergies();
-      this.hud!.activeSynergyNames = waveSynergies.map(s => s.nameKo);
       this.hud!.activeSynergyData = waveSynergies.map(s => ({ id: s.id, nameKo: s.nameKo, description: s.description }));
-    }
-
-    // Build phase: evaluate synergies (no buffs applied, display only)
-    if (phase === 'build' && this.towerEngine.getTowers().length > 0) {
-      if (this.previewTowerId) {
-        const def = TOWER_DEFS[this.previewTowerId];
-        if (def) {
-          const preview = this.towerEngine.previewSynergies(def, this.previewRow, this.previewCol);
-          const current = this.towerEngine.evaluateSynergiesOnly();
-          const curIds = new Set(current.map(s => s.id));
-          this.hud!.activeSynergyNames = preview.map(s => curIds.has(s.id) ? s.nameKo : `+${s.nameKo}`);
-          this.hud!.activeSynergyData = preview.map(s => ({
-            id: s.id, nameKo: s.nameKo, description: s.description,
-            isNew: !curIds.has(s.id),
-          }));
-        }
-      } else {
-        const synergies = this.towerEngine.evaluateSynergiesOnly();
-        this.hud!.activeSynergyNames = synergies.map(s => s.nameKo);
-        this.hud!.activeSynergyData = synergies.map(s => ({ id: s.id, nameKo: s.nameKo, description: s.description }));
-      }
     }
 
     if (phase === 'wave') {
