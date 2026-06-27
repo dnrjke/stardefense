@@ -22,6 +22,7 @@ export class RadialMenu {
 
   private readonly radius = 52;
   private readonly btnSize = 40;
+  private showTime = 0;
 
   constructor() {
     this.container = document.createElement('div');
@@ -32,6 +33,7 @@ export class RadialMenu {
   show(screenX: number, screenY: number, items: RadialMenuItem[]) {
     this.items = items;
     this.visible = true;
+    this.showTime = Date.now();
     this.container.style.pointerEvents = 'auto';
     this.container.innerHTML = '';
 
@@ -53,6 +55,7 @@ export class RadialMenu {
     backdrop.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
     backdrop.onclick = (e) => {
       e.stopPropagation();
+      if (Date.now() - this.showTime < 250) return;
       this.hide();
       this.onClose?.();
     };
@@ -121,7 +124,8 @@ export class RadialMenu {
       scene.getTransformMatrix(),
       scene.activeCamera!.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight()),
     );
-    return { x: projected.x, y: projected.y };
+    const dpr = engine.getHardwareScalingLevel();
+    return { x: projected.x * dpr, y: projected.y * dpr };
   }
 
   dispose() {

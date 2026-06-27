@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <!-- Background gradient -->
+    <radialGradient id="bg" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#0a0a2e"/>
+      <stop offset="100%" stop-color="#020210"/>
+    </radialGradient>
+    <!-- Star core glow -->
+    <radialGradient id="starGlow" cx="50%" cy="48%" r="28%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="15%" stop-color="#fff8e0"/>
+      <stop offset="40%" stop-color="#ffcc44"/>
+      <stop offset="70%" stop-color="#ff8811"/>
+      <stop offset="100%" stop-color="#ff440000"/>
+    </radialGradient>
+    <!-- Outer aura -->
+    <radialGradient id="aura" cx="50%" cy="48%" r="45%">
+      <stop offset="0%" stop-color="#ffaa3366"/>
+      <stop offset="50%" stop-color="#ff662220"/>
+      <stop offset="100%" stop-color="#ff220000"/>
+    </radialGradient>
+    <!-- Shield arc gradient -->
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4488ff"/>
+      <stop offset="50%" stop-color="#66ccff"/>
+      <stop offset="100%" stop-color="#4488ff"/>
+    </linearGradient>
+    <!-- Inner shield -->
+    <linearGradient id="shieldInner" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8844ff"/>
+      <stop offset="50%" stop-color="#aa66ff"/>
+      <stop offset="100%" stop-color="#8844ff"/>
+    </linearGradient>
+    <!-- Glow filter -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="starFilter">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect width="512" height="512" rx="100" ry="100" fill="url(#bg)"/>
+
+  <!-- Background stars -->
+  <circle cx="80" cy="70" r="1.5" fill="#aaccff" opacity="0.7"/>
+  <circle cx="420" cy="90" r="1" fill="#ffffff" opacity="0.5"/>
+  <circle cx="140" cy="400" r="1.2" fill="#ccddff" opacity="0.6"/>
+  <circle cx="390" cy="380" r="1.5" fill="#aabbee" opacity="0.5"/>
+  <circle cx="60" cy="250" r="1" fill="#ffffff" opacity="0.4"/>
+  <circle cx="450" cy="200" r="1.3" fill="#bbccff" opacity="0.6"/>
+  <circle cx="200" cy="450" r="1" fill="#ffffff" opacity="0.5"/>
+  <circle cx="350" cy="60" r="1.2" fill="#aabbff" opacity="0.4"/>
+  <circle cx="100" cy="160" r="0.8" fill="#ffffff" opacity="0.3"/>
+  <circle cx="440" cy="310" r="1" fill="#ccddff" opacity="0.4"/>
+  <circle cx="310" cy="440" r="0.8" fill="#aabbee" opacity="0.5"/>
+  <circle cx="170" cy="100" r="1" fill="#ffffff" opacity="0.3"/>
+  <circle cx="50" cy="350" r="1.3" fill="#bbccff" opacity="0.4"/>
+  <circle cx="460" cy="140" r="0.8" fill="#ffffff" opacity="0.5"/>
+
+  <!-- Outer aura -->
+  <circle cx="256" cy="246" r="200" fill="url(#aura)" filter="url(#softGlow)"/>
+
+  <!-- Defense shield arcs (3 orbital rings) -->
+  <!-- Outer ring -->
+  <g filter="url(#glow)" opacity="0.85">
+    <path d="M 256 96 A 160 160 0 0 1 416 246" fill="none" stroke="url(#shieldGrad)" stroke-width="3.5" stroke-linecap="round" opacity="0.9"/>
+    <path d="M 416 246 A 160 160 0 0 1 296 402" fill="none" stroke="url(#shieldGrad)" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+    <path d="M 216 402 A 160 160 0 0 1 96 246" fill="none" stroke="url(#shieldGrad)" stroke-width="3.5" stroke-linecap="round" opacity="0.9"/>
+    <path d="M 96 246 A 160 160 0 0 1 256 96" fill="none" stroke="url(#shieldGrad)" stroke-width="3" stroke-linecap="round" opacity="0.6" stroke-dasharray="8 12"/>
+  </g>
+
+  <!-- Middle ring -->
+  <g filter="url(#glow)" opacity="0.7" transform="rotate(30 256 246)">
+    <path d="M 256 126 A 120 120 0 0 1 376 246" fill="none" stroke="url(#shieldInner)" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
+    <path d="M 376 246 A 120 120 0 0 1 256 366" fill="none" stroke="url(#shieldInner)" stroke-width="2" stroke-linecap="round" opacity="0.5" stroke-dasharray="6 10"/>
+    <path d="M 256 366 A 120 120 0 0 1 136 246" fill="none" stroke="url(#shieldInner)" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
+  </g>
+
+  <!-- Tower dots on shield rings -->
+  <circle cx="256" cy="96" r="5" fill="#66aaff" filter="url(#glow)"/>
+  <circle cx="416" cy="246" r="4" fill="#88ccff" filter="url(#glow)"/>
+  <circle cx="96" cy="246" r="5" fill="#66aaff" filter="url(#glow)"/>
+  <circle cx="376" cy="156" r="3.5" fill="#aa88ff" filter="url(#glow)" opacity="0.8"/>
+  <circle cx="136" cy="336" r="3.5" fill="#aa88ff" filter="url(#glow)" opacity="0.8"/>
+
+  <!-- Central star -->
+  <circle cx="256" cy="246" r="70" fill="url(#starGlow)" filter="url(#starFilter)"/>
+
+  <!-- Star surface detail (convection cells) -->
+  <g opacity="0.25">
+    <circle cx="240" cy="230" r="18" fill="none" stroke="#ffeeaa" stroke-width="1"/>
+    <circle cx="270" cy="255" r="14" fill="none" stroke="#ffddaa" stroke-width="0.8"/>
+    <circle cx="248" cy="260" r="10" fill="none" stroke="#ffeecc" stroke-width="0.7"/>
+    <circle cx="265" cy="228" r="12" fill="none" stroke="#ffeeaa" stroke-width="0.8"/>
+  </g>
+
+  <!-- Star highlight -->
+  <circle cx="244" cy="234" r="20" fill="#ffffff" opacity="0.3"/>
+  <circle cx="248" cy="238" r="10" fill="#ffffff" opacity="0.2"/>
+
+  <!-- Incoming threat indicators (small red dots approaching) -->
+  <circle cx="440" cy="100" r="4" fill="#ff4444" opacity="0.7" filter="url(#glow)"/>
+  <circle cx="460" cy="130" r="3" fill="#ff6644" opacity="0.5"/>
+  <circle cx="70" cy="400" r="3.5" fill="#ff4444" opacity="0.6" filter="url(#glow)"/>
+  <circle cx="45" cy="420" r="2.5" fill="#ff6644" opacity="0.4"/>
+
+  <!-- Title area -->
+  <text x="256" y="480" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="36" fill="#88aaff" opacity="0.9" filter="url(#glow)">SD</text>
+</svg>

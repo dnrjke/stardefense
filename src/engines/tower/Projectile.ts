@@ -53,6 +53,7 @@ export class Projectile {
   target: EnemyEntity;
   damage: number;
   speed: number;
+  splashRadius = 0;
   alive = true;
   private prevPos: BABYLON.Vector3;
   private nextPos: BABYLON.Vector3;

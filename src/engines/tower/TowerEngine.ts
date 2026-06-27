@@ -144,6 +144,20 @@ export class TowerEngine {
       const hit = proj.fixedUpdate(dt);
       if (hit) {
         this.onEnemyHit?.(proj.target, proj.damage);
+        if (proj.splashRadius > 0) {
+          const splashSq = proj.splashRadius * proj.splashRadius;
+          const impactX = proj.target.position.x;
+          const impactZ = proj.target.position.z;
+          const splashDmg = Math.round(proj.damage * 0.5);
+          for (const enemy of enemies) {
+            if (!enemy.alive || enemy === proj.target) continue;
+            const dx = enemy.position.x - impactX;
+            const dz = enemy.position.z - impactZ;
+            if (dx * dx + dz * dz <= splashSq) {
+              this.onEnemyHit?.(enemy, splashDmg);
+            }
+          }
+        }
       }
     }
 

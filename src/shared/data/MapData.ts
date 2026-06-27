@@ -299,6 +299,46 @@ export function createMap3_2(): MapDef {
   };
 }
 
+export function createMap3_2b(): MapDef {
+  const cols = 20;
+  const rows = 14;
+  const tileSize = 1;
+  const buildable = createEmptyGrid(rows, cols);
+
+  const pathA: Vec2[] = [
+    { x: 0, y: 2 },
+    { x: 4, y: 2 },
+    { x: 4, y: 6 },
+    { x: 9, y: 6 },
+    { x: 9, y: 2 },
+    { x: 14, y: 2 },
+    { x: 14, y: 6 },
+    { x: 19, y: 6 },
+  ];
+
+  const pathB: Vec2[] = [
+    { x: 0, y: 11 },
+    { x: 4, y: 11 },
+    { x: 4, y: 8 },
+    { x: 9, y: 8 },
+    { x: 9, y: 11 },
+    { x: 14, y: 11 },
+    { x: 14, y: 8 },
+    { x: 19, y: 8 },
+  ];
+
+  markPathOnGrid(buildable, pathA);
+  markPathOnGrid(buildable, pathB);
+
+  return {
+    cols, rows, tileSize,
+    waypoints: pathA,
+    paths: [pathA, pathB],
+    buildable,
+    cameraDistance: 22,
+  };
+}
+
 export function createMap3_3(): MapDef {
   const cols = 20;
   const rows = 14;

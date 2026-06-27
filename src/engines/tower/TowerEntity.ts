@@ -333,7 +333,7 @@ export class TowerEntity {
     if (!closest) return null;
 
     this.attackCooldown = 1 / this.def.attackRate;
-    return new Projectile(
+    const proj = new Projectile(
       this.scene,
       this.mesh.position,
       closest,
@@ -341,6 +341,8 @@ export class TowerEntity {
       this.def.projectileSpeed,
       this.color,
     );
+    if (this.def.splashRadius) proj.splashRadius = this.def.splashRadius;
+    return proj;
   }
 
   dispose() {

@@ -132,47 +132,40 @@ export class MapSelectScreen {
       }
 
       actSection.appendChild(pathContainer);
+
+      // Inline description + start button below the selected stage's act
+      const selectedInAct = actMaps.find(m => m.id === selected);
+      if (selectedInAct) {
+        const inlinePanel = document.createElement('div');
+        inlinePanel.style.cssText = `width:${mob ? '85vw' : '420px'};background:rgba(10,10,30,0.8);border:1px solid #334;border-radius:8px;padding:${mob ? '10px 14px' : '14px 20px'};text-align:center;margin-top:${mob ? 8 : 14}px;`;
+
+        const descText = document.createElement('div');
+        descText.textContent = selectedInAct.description;
+        descText.style.cssText = `font-size:${mob ? 11 : 13}px;color:#8899bb;line-height:1.6;margin-bottom:${mob ? 8 : 12}px;`;
+        inlinePanel.appendChild(descText);
+
+        if (selectedInAct.unlocked) {
+          const startBtn = document.createElement('button');
+          startBtn.textContent = 'START';
+          startBtn.style.cssText = `background:rgba(40,60,120,0.6);color:#aaccff;border:2px solid #4466aa;padding:${mob ? '10px 28px' : '12px 40px'};cursor:pointer;font-family:monospace;font-size:${mob ? 14 : 16}px;font-weight:bold;border-radius:6px;letter-spacing:${mob ? 2 : 4}px;transition:all 0.2s;min-height:${mob ? '44px' : 'auto'};`;
+          startBtn.onmouseenter = () => {
+            startBtn.style.background = 'rgba(60,90,180,0.7)';
+            startBtn.style.boxShadow = '0 0 24px rgba(68,102,170,0.5)';
+            startBtn.style.color = '#ddeeff';
+          };
+          startBtn.onmouseleave = () => {
+            startBtn.style.background = 'rgba(40,60,120,0.6)';
+            startBtn.style.boxShadow = 'none';
+            startBtn.style.color = '#aaccff';
+          };
+          startBtn.onclick = () => this.onMapStart?.(selectedInAct.id);
+          inlinePanel.appendChild(startBtn);
+        }
+
+        actSection.appendChild(inlinePanel);
+      }
+
       content.appendChild(actSection);
-    }
-
-    // Description panel
-    const descPanel = document.createElement('div');
-    descPanel.style.cssText = `width:${mob ? '85vw' : '420px'};min-height:${mob ? 40 : 60}px;background:rgba(10,10,30,0.8);border:1px solid #334;border-radius:8px;padding:${mob ? '10px 14px' : '16px 24px'};text-align:center;margin-bottom:${mob ? 16 : 32}px;`;
-
-    if (selected && state.maps[selected]) {
-      const m = state.maps[selected];
-      const descText = document.createElement('div');
-      descText.textContent = m.description;
-      descText.style.cssText = `font-size:${mob ? 11 : 13}px;color:#8899bb;line-height:1.6;`;
-      descPanel.appendChild(descText);
-    } else {
-      const hint = document.createElement('div');
-      hint.textContent = '맵을 선택하세요';
-      hint.style.cssText = `font-size:${mob ? 11 : 13}px;color:#445;`;
-      descPanel.appendChild(hint);
-    }
-
-    content.appendChild(descPanel);
-
-    // Start button
-    if (selected && state.maps[selected]?.unlocked) {
-      const startBtn = document.createElement('button');
-      startBtn.textContent = 'START';
-      startBtn.style.cssText = `background:rgba(40,60,120,0.6);color:#aaccff;border:2px solid #4466aa;padding:${mob ? '12px 36px' : '14px 48px'};cursor:pointer;font-family:monospace;font-size:${mob ? 15 : 18}px;font-weight:bold;border-radius:6px;letter-spacing:${mob ? 2 : 4}px;transition:all 0.2s;min-height:${mob ? '48px' : 'auto'};`;
-      startBtn.onmouseenter = () => {
-        startBtn.style.background = 'rgba(60,90,180,0.7)';
-        startBtn.style.boxShadow = '0 0 24px rgba(68,102,170,0.5)';
-        startBtn.style.color = '#ddeeff';
-      };
-      startBtn.onmouseleave = () => {
-        startBtn.style.background = 'rgba(40,60,120,0.6)';
-        startBtn.style.boxShadow = 'none';
-        startBtn.style.color = '#aaccff';
-      };
-      startBtn.onclick = () => {
-        if (selected) this.onMapStart?.(selected);
-      };
-      content.appendChild(startBtn);
     }
   }
 
@@ -257,10 +250,11 @@ export class MapSelectScreen {
     name.style.cssText = `font-size:${mob ? 10 : 12}px;color:${map.unlocked ? (map.isBoss ? '#cc8866' : '#8899bb') : '#334'};text-align:center;max-width:${mob ? 60 : 80}px;line-height:1.3;`;
     node.appendChild(name);
 
-    // Click handler
+    // Click handler — toggle selection on re-click
     if (map.unlocked) {
       node.onclick = () => {
-        this.store.getState().selectMap(map.id);
+        const current = this.store.getState().currentMapId;
+        this.store.getState().selectMap(current === map.id ? null : map.id);
       };
     }
 

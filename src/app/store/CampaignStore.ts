@@ -18,7 +18,7 @@ export interface CampaignState {
 
   unlockMap: (id: string) => void;
   completeMap: (id: string) => void;
-  selectMap: (id: string) => void;
+  selectMap: (id: string | null) => void;
   getActMaps: (act: number) => MapInfo[];
   save: () => void;
   load: () => void;
@@ -137,12 +137,23 @@ const DEFAULT_MAPS: Record<string, MapInfo> = {
     isBoss: false,
     description: '퀘이사의 강렬한 에너지가 두 갈래 경로로 적을 밀어낸다.',
   },
+  map_3_2b: {
+    id: 'map_3_2b',
+    name: 'Carina Nebula — Stellar Winds',
+    nameKo: '용골 성운 — 항성풍의 전장',
+    act: 3,
+    order: 3,
+    unlocked: false,
+    completed: false,
+    isBoss: false,
+    description: '가장 무겁고 격렬한 별들이 태어나는 곳. 볼프-레이에 별의 항성풍이 공허 조류를 맞선다.',
+  },
   map_3_3: {
     id: 'map_3_3',
     name: 'Neutron Star Debris Field',
     nameKo: '중성자별 잔해지대',
     act: 3,
-    order: 3,
+    order: 4,
     unlocked: false,
     completed: false,
     isBoss: false,
@@ -153,7 +164,7 @@ const DEFAULT_MAPS: Record<string, MapInfo> = {
     name: 'Event Horizon',
     nameKo: '사건의 지평선',
     act: 3,
-    order: 4,
+    order: 5,
     unlocked: false,
     completed: false,
     isBoss: true,

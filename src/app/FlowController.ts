@@ -12,8 +12,8 @@ import type { GameStore } from '@/app/store/GameStore';
 import { createCampaignStore } from '@/app/store/CampaignStore';
 import type { CampaignStore } from '@/app/store/CampaignStore';
 import { MapSelectScreen } from '@/shared/ui/MapSelectScreen';
-import { createMap1_1, createMap1_2, createMap1_3, createMap1_B, createMap2_1, createMap2_2, createMap2_3, createMap2_B, createMap3_1, createMap3_2, createMap3_3, createMap3_B, createMap4_1, createMap4_2, createMap4_3, createMap4_B, createMapHeatDeath } from '@/shared/data/MapData';
-import { MAP_1_1_WAVES, MAP_1_2_WAVES, MAP_1_3_WAVES, MAP_1_B_WAVES, MAP_2_1_WAVES, MAP_2_2_WAVES, MAP_2_3_WAVES, MAP_2_B_WAVES, MAP_3_1_WAVES, MAP_3_2_WAVES, MAP_3_3_WAVES, MAP_3_B_WAVES, MAP_4_1_WAVES, MAP_4_2_WAVES, MAP_4_3_WAVES, MAP_4_B_WAVES } from '@/shared/data/WaveData';
+import { createMap1_1, createMap1_2, createMap1_3, createMap1_B, createMap2_1, createMap2_2, createMap2_3, createMap2_B, createMap3_1, createMap3_2, createMap3_2b, createMap3_3, createMap3_B, createMap4_1, createMap4_2, createMap4_3, createMap4_B, createMapHeatDeath } from '@/shared/data/MapData';
+import { MAP_1_1_WAVES, MAP_1_2_WAVES, MAP_1_3_WAVES, MAP_1_B_WAVES, MAP_2_1_WAVES, MAP_2_2_WAVES, MAP_2_3_WAVES, MAP_2_B_WAVES, MAP_3_1_WAVES, MAP_3_2_WAVES, MAP_3_2B_WAVES, MAP_3_3_WAVES, MAP_3_B_WAVES, MAP_4_1_WAVES, MAP_4_2_WAVES, MAP_4_3_WAVES, MAP_4_B_WAVES } from '@/shared/data/WaveData';
 import { HEAT_DEATH_CONFIG, getHeatDeathScaling } from '@/shared/data/HeatDeathConfig';
 import { MUTATION_DEFS, pickRandomMutations, computeMutationModifiers } from '@/shared/data/MutationData';
 import { getCrisisForWave } from '@/shared/data/CrisisData';
@@ -112,26 +112,33 @@ const MAP_CONFIGS: Record<string, MapConfig> = {
     waves: MAP_3_2_WAVES,
     availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar'],
     availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
+    unlockOnClear: 'map_3_2b',
+  },
+  map_3_2b: {
+    createMap: createMap3_2b,
+    waves: MAP_3_2B_WAVES,
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar', 'wolf_rayet'],
+    availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
     unlockOnClear: 'map_3_3',
   },
   map_3_3: {
     createMap: createMap3_3,
     waves: MAP_3_3_WAVES,
-    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar'],
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar', 'wolf_rayet'],
     availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
     unlockOnClear: 'map_3_b',
   },
   map_3_b: {
     createMap: createMap3_B,
     waves: MAP_3_B_WAVES,
-    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar'],
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar', 'wolf_rayet'],
     availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
     unlockOnClear: 'map_4_1',
   },
   map_4_1: {
     createMap: createMap4_1,
     waves: MAP_4_1_WAVES,
-    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar'],
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar', 'wolf_rayet'],
     availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
     environment: 'dark_sector',
     unlockOnClear: 'map_4_2',
@@ -139,7 +146,7 @@ const MAP_CONFIGS: Record<string, MapConfig> = {
   map_4_2: {
     createMap: createMap4_2,
     waves: MAP_4_2_WAVES,
-    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar'],
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar', 'wolf_rayet'],
     availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
     environment: 'gravity_well',
     unlockOnClear: 'map_4_3',
@@ -147,7 +154,7 @@ const MAP_CONFIGS: Record<string, MapConfig> = {
   map_4_3: {
     createMap: createMap4_3,
     waves: MAP_4_3_WAVES,
-    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar'],
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar', 'wolf_rayet'],
     availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
     environment: 'nebula_rich',
     isSurvival: true,
@@ -156,7 +163,7 @@ const MAP_CONFIGS: Record<string, MapConfig> = {
   map_4_b: {
     createMap: createMap4_B,
     waves: MAP_4_B_WAVES,
-    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar'],
+    availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar', 'wolf_rayet'],
     availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
     environment: 'dark_sector',
     unlockOnClear: 'map_heat_death',
@@ -238,7 +245,32 @@ export class FlowController {
 
     // Render loop (always running)
     this.engine.runRenderLoop(() => this.renderLoop());
-    window.addEventListener('resize', () => this.engine.resize());
+    this.resizeCanvas();
+    window.addEventListener('resize', () => this.resizeCanvas());
+  }
+
+  private resizeCanvas() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const targetAspect = 16 / 10;
+    let cw: number;
+    let ch: number;
+
+    if (w / h > targetAspect) {
+      ch = h;
+      cw = h * targetAspect;
+    } else {
+      cw = w;
+      ch = w / targetAspect;
+    }
+
+    this.canvas.style.width = `${cw}px`;
+    this.canvas.style.height = `${ch}px`;
+    this.canvas.style.position = 'absolute';
+    this.canvas.style.left = '50%';
+    this.canvas.style.top = '50%';
+    this.canvas.style.transform = 'translate(-50%, -50%)';
+    this.engine.resize();
   }
 
   showMapSelect() {
@@ -272,6 +304,10 @@ export class FlowController {
     this.camera.lowerRadiusLimit = camDist;
     this.camera.upperRadiusLimit = camDist;
 
+    const mob = 'ontouchstart' in window && window.innerHeight <= 500 && window.innerWidth > window.innerHeight;
+    const hudOffset = mob ? camDist * 0.06 : 0;
+    this.camera.target = new BABYLON.Vector3(0, 0, hudOffset);
+
     const env = config.environment ? MAP_ENVIRONMENTS[config.environment] : undefined;
     const ismMult = env?.ismMultiplier ?? 1;
 
@@ -280,7 +316,7 @@ export class FlowController {
     this.waveEngine.speedMultiplier = env?.speedMultiplier ?? 1;
     this.towerEngine = new TowerEngine(this.scene, this.mapEngine);
     this.nebulaEngine = new NebulaEngine(this.scene, this.mapEngine);
-    this.spellEngine = new SpellEngine();
+    this.spellEngine = new SpellEngine(this.scene);
 
     // Store
     const totalWaves = config.isSurvival ? 9999 : config.waves.length;
@@ -564,10 +600,10 @@ export class FlowController {
       this.hud!.render();
     };
 
-    // Pointer handler
+    // Pointer handler — allowed during build AND wave phases
     this.scene.onPointerDown = (_evt, pickResult) => {
       const state = store.getState();
-      if (state.phase !== 'build') return;
+      if (state.phase === 'gameover') return;
       if (this.radialMenu!.isVisible()) return;
 
       if (!pickResult.hit || !pickResult.pickedMesh?.metadata) return;
@@ -824,12 +860,14 @@ export class FlowController {
   }
 
   private showFloatingIsm(amount: number, worldPos: BABYLON.Vector3) {
-    const screenPos = BABYLON.Vector3.Project(
+    const projected = BABYLON.Vector3.Project(
       worldPos,
       BABYLON.Matrix.Identity(),
       this.scene.getTransformMatrix(),
       this.camera.viewport.toGlobal(this.engine.getRenderWidth(), this.engine.getRenderHeight()),
     );
+    const dpr = this.engine.getHardwareScalingLevel();
+    const screenPos = { x: projected.x * dpr, y: projected.y * dpr };
     const el = document.createElement('div');
     el.textContent = `+${amount}`;
     el.style.cssText = `position:fixed;left:${screenPos.x}px;top:${screenPos.y}px;color:#ff4;font-family:monospace;font-size:14px;font-weight:bold;pointer-events:none;z-index:20;text-shadow:0 0 4px rgba(255,255,0,0.5);transition:all 0.5s ease-out;`;

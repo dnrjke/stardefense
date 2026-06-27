@@ -16,6 +16,8 @@ export interface TowerDef {
   pulsarInterval?: number;
   pulsarKnockback?: number;
   pulsarStunDuration?: number;
+  splashRadius?: number;
+  descriptionKo?: string;
 }
 
 export const TOWER_DEFS: Record<string, TowerDef> = {
@@ -30,6 +32,7 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     range: 3,
     cost: 50,
     projectileSpeed: 8,
+    descriptionKo: '태양계 질량의 99.86%를 홀로 지배하는 황색왜성. 평범하지만, 그 안정성이야말로 가장 강력한 무기다.',
   },
   proxima: {
     id: 'proxima',
@@ -42,6 +45,7 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     range: 2,
     cost: 30,
     projectileSpeed: 10,
+    descriptionKo: '가장 가까운 이웃 — 4.24광년 너머에서 붉게 깜빡이는 M형 왜성. 작고 어둡지만, 치명적인 플레어를 감추고 있다.',
   },
   sirius: {
     id: 'sirius',
@@ -54,6 +58,7 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     range: 3.5,
     cost: 80,
     projectileSpeed: 9,
+    descriptionKo: '밤하늘에서 가장 밝은 별. 차갑고 정확한 A형 주계열성의 빛은, 항로를 비추는 항해자의 등대.',
   },
   rigel: {
     id: 'rigel',
@@ -66,6 +71,7 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     range: 5,
     cost: 120,
     projectileSpeed: 7,
+    descriptionKo: '오리온의 왼발 — 태양 12만 배의 광도를 860광년 너머로 보내는 청색 초거성. 느리지만, 한 발이면 충분하다.',
   },
   betelgeuse: {
     id: 'betelgeuse',
@@ -80,6 +86,7 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     projectileSpeed: 8,
     specialType: 'betelgeuse',
     wavesUntilExplosion: 5,
+    descriptionKo: '2,000년 전에는 노란 별이었다. 지금은 초신성 전야를 사는 적색초거성 — 마지막 빛은 가장 눈부시다.',
   },
   red_giant: {
     id: 'red_giant',
@@ -92,6 +99,7 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     range: 0,
     cost: 80,
     projectileSpeed: 8,
+    descriptionKo: '주계열을 떠난 별의 첫 번째 변신. 부풀어 오른 외피는 은은하지만, 품 안의 헬륨 핵은 뜨겁다.',
   },
   blue_giant: {
     id: 'blue_giant',
@@ -104,6 +112,7 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     range: 0,
     cost: 120,
     projectileSpeed: 9,
+    descriptionKo: '질량과 광도의 극한 — 수백만 년의 격렬한 삶을 택한 별. 짧지만 찬란하게.',
   },
   supernova_remnant: {
     id: 'supernova_remnant',
@@ -118,6 +127,7 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     projectileSpeed: 0,
     specialType: 'supernova_remnant',
     noAttack: true,
+    descriptionKo: '별의 죽음이 남긴 잔해. 팽창하는 충격파가 주변을 영원히 불태운다.',
   },
   planetary_nebula: {
     id: 'planetary_nebula',
@@ -133,6 +143,7 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     specialType: 'planetary_nebula',
     noAttack: true,
     armorDebuff: 5,
+    descriptionKo: '별의 마지막 숨결이 빚은 빛의 고리. 50억 년 뒤 태양의 운명을 예고한다.',
   },
   black_hole: {
     id: 'black_hole',
@@ -147,6 +158,7 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     projectileSpeed: 0,
     specialType: 'black_hole',
     noAttack: true,
+    descriptionKo: '빛조차 탈출할 수 없는 시공간의 특이점. 사건의 지평선 안에서는 어떤 존재도 예외 없다.',
   },
   pulsar: {
     id: 'pulsar',
@@ -164,6 +176,21 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     pulsarInterval: 2.0,
     pulsarKnockback: 0.5,
     pulsarStunDuration: 0.5,
+    descriptionKo: '초당 수백 회 자전하는 중성자별의 등대. 정밀한 중력파 펄스로 항로를 교란한다.',
+  },
+  wolf_rayet: {
+    id: 'wolf_rayet',
+    name: 'Wolf-Rayet',
+    nameKo: '볼프-레이에',
+    spectralType: 'WN8',
+    ci: -0.3,
+    damage: 40,
+    attackRate: 0.35,
+    range: 3.5,
+    cost: 140,
+    projectileSpeed: 6,
+    splashRadius: 1.5,
+    descriptionKo: '태양 질량의 수십 배를 지닌 극한 질량 별. 초속 2,000km의 항성풍이 주변 수 파섹을 깎아내며, 그 폭풍 속에서 별의 외피가 벗겨져 뜨거운 핵이 드러난다.',
   },
   magnetar: {
     id: 'magnetar',
@@ -177,5 +204,6 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     cost: 150,
     projectileSpeed: 12,
     specialType: 'magnetar',
+    descriptionKo: '우주에서 가장 강력한 자기장을 지닌 중성자별. 그 자기 펄스는 행성의 지각을 녹일 수 있다.',
   },
 };

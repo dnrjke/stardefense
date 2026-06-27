@@ -4,6 +4,9 @@ import { NEBULA_DEFS } from '@/shared/data/NebulaData';
 import { SPELL_DEFS } from '@/shared/data/SpellData';
 import { ENEMY_DEFS } from '@/shared/data/EnemyData';
 import type { WaveDef } from '@/shared/data/WaveData';
+import { EVOLUTION_TREE } from '@/engines/tower/EvolutionSystem';
+import { ciToRgb } from '@/shared/data/ColorUtil';
+import { createNebulaPreview, createTowerPreview, disposeNebulaPreview } from '@/shared/ui/NebulaPreview';
 
 /** Detect mobile landscape: narrow height + touch support */
 function isMobileLandscape(): boolean {
@@ -28,8 +31,9 @@ export class HUD {
 
   private selectedTowerId: string | null = null;
   private selectedNebulaId: string | null = null;
-  private tooltip!: HTMLDivElement;
-  private wavePreview!: HTMLDivElement;
+  private infoPanel!: HTMLDivElement;
+  private wavePreview!: HTMLSpanElement;
+  private startWaveBtn!: HTMLButtonElement;
   private spellPanel!: HTMLDivElement;
   private spellGaugeFill!: HTMLDivElement;
   private spellGaugeLabel!: HTMLDivElement;
@@ -86,15 +90,28 @@ export class HUD {
     this.endScreen.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.8);pointer-events:auto;';
     this.container.appendChild(this.endScreen);
 
-    // Tooltip — hidden on mobile (use long-press or skip)
-    this.tooltip = document.createElement('div');
-    this.tooltip.style.cssText = 'position:fixed;background:rgba(0,0,20,0.9);border:1px solid #446;padding:8px 12px;border-radius:6px;font-size:11px;color:#ccd;pointer-events:none;z-index:30;display:none;max-width:200px;line-height:1.4;';
-    document.body.appendChild(this.tooltip);
+    // Left info panel — shows tower/nebula details when selected
+    this.infoPanel = document.createElement('div');
+    this.infoPanel.style.cssText = `position:absolute;left:calc(8px + ${safeInset('left')});top:50px;width:${mob ? 140 : 180}px;background:rgba(0,0,10,0.85);border:1px solid #446;border-radius:8px;padding:12px;pointer-events:none;display:none;font-size:${mob ? 10 : 11}px;line-height:1.5;color:#ccd;max-height:calc(100vh - 50px - ${mob ? 56 : 64}px - 16px);overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none;`;
+    this.container.appendChild(this.infoPanel);
 
-    // Wave preview
-    this.wavePreview = document.createElement('div');
-    this.wavePreview.style.cssText = `position:absolute;top:${mob ? 40 : 50}px;left:50%;transform:translateX(-50%);background:rgba(0,0,30,0.85);border:1px solid #446;padding:${mob ? '6px 10px' : '8px 16px'};border-radius:6px;font-size:${mob ? 10 : 12}px;text-align:center;pointer-events:none;display:none;max-width:${mob ? '80vw' : '500px'};color:#8af;`;
-    this.container.appendChild(this.wavePreview);
+    if (!document.getElementById('hideScrollbarStyle')) {
+      const style = document.createElement('style');
+      style.id = 'hideScrollbarStyle';
+      style.textContent = '.hide-scrollbar::-webkit-scrollbar{display:none}';
+      document.head.appendChild(style);
+    }
+    this.infoPanel.classList.add('hide-scrollbar');
+
+    // Wave preview — inline in top bar (no separate overlay)
+    this.wavePreview = document.createElement('span');
+    this.wavePreview.style.cssText = `font-size:${mob ? 10 : 11}px;color:#8af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${mob ? '30vw' : '300px'};display:none;margin-left:${mob ? 4 : 8}px;`;
+
+    // Start wave button — fixed bottom-right, above footer
+    this.startWaveBtn = document.createElement('button');
+    this.startWaveBtn.style.cssText = `position:absolute;right:calc(${mob ? '8px' : '16px'} + ${safeInset('right')});bottom:calc(${mob ? '64px' : '76px'} + ${safeInset('bottom')});background:#224;color:#aaf;border:2px solid #558;padding:${mob ? '10px 16px' : '10px 20px'};cursor:pointer;font-family:monospace;font-size:${mob ? 13 : 14}px;font-weight:bold;border-radius:8px;pointer-events:auto;display:none;z-index:12;text-shadow:0 0 8px rgba(100,120,255,0.4);`;
+    this.startWaveBtn.onclick = () => this.onStartWave?.();
+    this.container.appendChild(this.startWaveBtn);
 
     // Persistent spell panel (never destroyed during render)
     this.spellPanel = document.createElement('div');
@@ -115,12 +132,17 @@ export class HUD {
     this.spellGaugeLabel.style.cssText = `font-size:${mob ? 9 : 10}px;color:#88a;text-align:center;margin-bottom:${mob ? 2 : 4}px;`;
     this.spellPanel.appendChild(this.spellGaugeLabel);
 
-    const spellBtnW = mob ? 72 : 100;
+    const spellBtnW = mob ? 90 : 120;
     for (const [sid, sdef] of Object.entries(SPELL_DEFS)) {
       const btn = document.createElement('button');
-      btn.style.cssText = `background:#222;color:#556;border:1px solid #334;padding:${mob ? '8px 4px' : '6px 10px'};cursor:default;font-family:monospace;font-size:${mob ? 9 : 11}px;border-radius:4px;width:${spellBtnW}px;text-align:center;min-height:${mob ? '36px' : 'auto'};`;
-      btn.title = sdef.description;
-      btn.textContent = mob ? sdef.nameKo : `${sdef.nameKo} [${sdef.gaugeCost}]`;
+      btn.style.cssText = `background:#222;color:#556;border:1px solid #334;padding:${mob ? '6px 4px' : '6px 8px'};cursor:default;font-family:monospace;font-size:${mob ? 9 : 11}px;border-radius:4px;width:${spellBtnW}px;text-align:center;min-height:${mob ? '36px' : 'auto'};`;
+      const nameLine = document.createElement('div');
+      nameLine.textContent = mob ? sdef.nameKo : `${sdef.nameKo} [${sdef.gaugeCost}]`;
+      btn.appendChild(nameLine);
+      const descLine = document.createElement('div');
+      descLine.textContent = sdef.description;
+      descLine.style.cssText = `font-size:${mob ? 7 : 9}px;color:#667;margin-top:2px;`;
+      btn.appendChild(descLine);
       this.spellPanel.appendChild(btn);
       this.spellButtons.set(sid, btn);
     }
@@ -182,35 +204,7 @@ export class HUD {
     }
     this.topBar.appendChild(info);
 
-    const speedBtn = document.createElement('button');
-    speedBtn.textContent = `x${state.speed}`;
-    speedBtn.style.cssText = `background:${state.speed > 1 ? '#553' : '#333'};color:${state.speed > 1 ? '#ff4' : '#aaa'};border:1px solid ${state.speed > 1 ? '#885' : '#555'};padding:${mob ? '6px 14px' : '4px 12px'};cursor:pointer;font-family:monospace;font-size:${mob ? 12 : 13}px;font-weight:bold;border-radius:4px;min-height:${mob ? '32px' : 'auto'};`;
-    speedBtn.onclick = () => this.onCycleSpeed?.();
-    this.topBar.appendChild(speedBtn);
-
-    // Update spell panel in-place (no DOM recreation)
-    this.updateSpellPanel(state);
-
-    // --- Bottom bar ---
-    this.bottomBar.innerHTML = '';
-
-    const palettePad = mob ? '8px 8px' : '6px 12px';
-    const paletteFontSize = mob ? 11 : 12;
-    const paletteMinH = mob ? 'min-height:44px;' : '';
-
-    if (state.phase === 'build') {
-      const startBtn = document.createElement('button');
-      startBtn.textContent = mob ? `WAVE ${state.currentWave + 1}` : `START WAVE ${state.currentWave + 1}`;
-      startBtn.style.cssText = `background:#335;color:#aaf;border:1px solid #558;padding:${mob ? '8px 10px' : '8px 16px'};cursor:pointer;font-family:monospace;font-size:${mob ? 11 : 13}px;border-radius:4px;white-space:nowrap;${paletteMinH}flex-shrink:0;`;
-      startBtn.onclick = () => this.onStartWave?.();
-      this.bottomBar.appendChild(startBtn);
-
-      const sep = document.createElement('div');
-      sep.style.cssText = 'width:1px;height:32px;background:#334;flex-shrink:0;';
-      this.bottomBar.appendChild(sep);
-    }
-
-    // Wave preview during build phase
+    // Wave preview inline in topBar (between info and speed)
     if (state.phase === 'build' && this.currentWaves.length > 0) {
       const nextIdx = this.isSurvival
         ? state.currentWave % this.currentWaves.length
@@ -221,16 +215,39 @@ export class HUD {
         for (const s of nextWave.spawns) {
           const eDef = ENEMY_DEFS[s.enemyId];
           const name = eDef ? eDef.nameKo : s.enemyId;
-          parts.push(`${name} x${s.count}`);
+          parts.push(`${name}x${s.count}`);
         }
-        this.wavePreview.textContent = mob
-          ? `W${state.currentWave + 1}: ${parts.join(', ')}`
-          : `WAVE ${state.currentWave + 1}: ${parts.join(', ')}`;
-        this.wavePreview.style.display = 'block';
-      } else {
-        this.wavePreview.style.display = 'none';
+        this.wavePreview.textContent = parts.join(' ');
+        this.wavePreview.style.display = 'inline';
+        this.topBar.appendChild(this.wavePreview);
       }
+    }
+
+    const speedBtn = document.createElement('button');
+    speedBtn.textContent = `x${state.speed}`;
+    speedBtn.style.cssText = `background:${state.speed > 1 ? '#553' : '#333'};color:${state.speed > 1 ? '#ff4' : '#aaa'};border:1px solid ${state.speed > 1 ? '#885' : '#555'};padding:${mob ? '6px 14px' : '4px 12px'};cursor:pointer;font-family:monospace;font-size:${mob ? 12 : 13}px;font-weight:bold;border-radius:4px;min-height:${mob ? '32px' : 'auto'};flex-shrink:0;`;
+    speedBtn.onclick = () => this.onCycleSpeed?.();
+    this.topBar.appendChild(speedBtn);
+
+    // Update spell panel in-place (no DOM recreation)
+    this.updateSpellPanel(state);
+
+    // Update left info panel
+    this.updateInfoPanel(mob);
+
+    // --- Bottom bar ---
+    this.bottomBar.innerHTML = '';
+
+    const palettePad = mob ? '8px 8px' : '6px 12px';
+    const paletteFontSize = mob ? 11 : 12;
+    const paletteMinH = mob ? 'min-height:44px;' : '';
+
+    // Start wave button — independent, bottom-right above footer
+    if (state.phase === 'build') {
+      this.startWaveBtn.textContent = mob ? `WAVE ${state.currentWave + 1} ▶` : `START WAVE ${state.currentWave + 1}`;
+      this.startWaveBtn.style.display = 'block';
     } else {
+      this.startWaveBtn.style.display = 'none';
       this.wavePreview.style.display = 'none';
     }
 
@@ -242,19 +259,6 @@ export class HUD {
       const selected = this.selectedTowerId === tid;
       btn.textContent = mob ? `${def.nameKo}(${def.cost})` : `${def.nameKo} (${def.cost})`;
       btn.style.cssText = `background:${selected ? '#446' : '#223'};color:#ddf;border:1px solid ${selected ? '#88a' : '#445'};padding:${palettePad};cursor:pointer;font-family:monospace;font-size:${paletteFontSize}px;border-radius:4px;white-space:nowrap;flex-shrink:0;${paletteMinH}`;
-      if (!mob) {
-        btn.onmouseenter = (e) => {
-          const rate = def.attackRate > 0 ? def.attackRate.toFixed(1) : '-';
-          const dmg = def.noAttack ? '-' : `${def.damage}`;
-          this.tooltip.innerHTML = `<b>${def.nameKo}</b> [${def.spectralType}]<br>DMG: ${dmg} | RATE: ${rate}/s | RNG: ${def.range}<br>COST: ${def.cost} ISM`;
-          this.tooltip.style.display = 'block';
-          this.tooltip.style.left = `${(e as MouseEvent).clientX + 10}px`;
-          this.tooltip.style.top = `${(e as MouseEvent).clientY - 60}px`;
-        };
-        btn.onmouseleave = () => {
-          this.tooltip.style.display = 'none';
-        };
-      }
       btn.onclick = () => {
         this.selectedNebulaId = null;
         this.selectedTowerId = this.selectedTowerId === tid ? null : tid;
@@ -314,13 +318,189 @@ export class HUD {
       const cd = state.spellCooldowns[sid] ?? 0;
       const canCast = state.spellGauge >= sdef.gaugeCost && cd <= 0;
       const cdText = cd > 0 ? ` (${Math.ceil(cd)}s)` : '';
-      btn.textContent = mob ? `${sdef.nameKo}${cdText}` : `${sdef.nameKo} [${sdef.gaugeCost}]${cdText}`;
+      const nameEl = btn.children[0] as HTMLDivElement;
+      if (nameEl) nameEl.textContent = mob ? `${sdef.nameKo}${cdText}` : `${sdef.nameKo} [${sdef.gaugeCost}]${cdText}`;
       btn.style.background = canCast ? '#335' : '#222';
       btn.style.color = canCast ? '#aaf' : '#556';
       btn.style.borderColor = canCast ? '#558' : '#334';
       btn.style.cursor = canCast ? 'pointer' : 'default';
       btn.onclick = canCast ? () => this.onCastSpell?.(sid) : null;
     }
+  }
+
+  private updateInfoPanel(mob: boolean) {
+    disposeNebulaPreview();
+    if (!this.selectedTowerId && !this.selectedNebulaId) {
+      this.infoPanel.style.display = 'none';
+      this.infoPanel.innerHTML = '';
+      return;
+    }
+    this.infoPanel.style.visibility = 'hidden';
+    this.infoPanel.style.display = 'block';
+    this.infoPanel.style.width = mob ? '140px' : '180px';
+    this.infoPanel.innerHTML = '';
+
+    const fs = mob ? 10 : 11;
+    const fsSmall = mob ? 8 : 9;
+
+    if (this.selectedTowerId) {
+      const def = TOWER_DEFS[this.selectedTowerId];
+      if (!def) return;
+
+      // Name + spectral type
+      const header = document.createElement('div');
+      header.style.cssText = `font-size:${fs + 2}px;font-weight:bold;margin-bottom:6px;color:#eef;`;
+      header.textContent = `${def.nameKo} [${def.spectralType}]`;
+      this.infoPanel.appendChild(header);
+
+      // Live shader preview (same GLSL as in-game towerStar shader)
+      const previewSize = mob ? 56 : 64;
+      const [r, g, b] = ciToRgb(def.ci);
+      const previewCanvas = createTowerPreview([r, g, b], previewSize);
+      this.infoPanel.appendChild(previewCanvas);
+
+      // Stats table
+      const rate = def.attackRate > 0 ? def.attackRate.toFixed(1) : '-';
+      const dmg = def.noAttack ? '-' : `${def.damage}`;
+      const sellValue = Math.floor(def.cost * 0.5);
+      const statsHtml = `<div style="font-size:${fs}px;color:#aab;line-height:1.8;">` +
+        `DMG: <span style="color:#fff;">${dmg}</span><br>` +
+        `RATE: <span style="color:#fff;">${rate}/s</span><br>` +
+        `RNG: <span style="color:#fff;">${def.range}</span><br>` +
+        `COST: <span style="color:#fff;">${def.cost} ISM</span><br>` +
+        `<span style="font-size:${fsSmall}px;color:#a88;">철거 환불: ${sellValue} ISM</span>` +
+        `</div>`;
+      const stats = document.createElement('div');
+      stats.innerHTML = statsHtml;
+      this.infoPanel.appendChild(stats);
+
+      // Special ability / mechanic notes
+      const specialDescs: Record<string, string> = {
+        betelgeuse: `${def.wavesUntilExplosion ?? 5}웨이브 생존 후 광역 폭발\n반경 3타일, 100 데미지\n폭발 후 소멸`,
+        magnetar: '높은 사거리의 자기장 사격',
+        supernova_remnant: '자동 공격 없음\n주변 적에게 지속 피해 (DoT 영역)',
+        planetary_nebula: '자동 공격 없음\n범위 내 적 방어력 -5 디버프 오라',
+        black_hole: '자동 공격 없음\n반경 내 적 즉사 (보스 포함)',
+        pulsar: `자동 공격 없음\n${def.pulsarInterval ?? 2}초 주기 360° 넉백 + ${def.pulsarStunDuration ?? 0.5}초 기절`,
+      };
+      if (def.specialType && specialDescs[def.specialType]) {
+        const special = document.createElement('div');
+        special.style.cssText = `font-size:${fsSmall}px;color:#f8d;margin-top:6px;border-top:1px solid #335;padding-top:4px;white-space:pre-line;line-height:1.5;`;
+        special.textContent = specialDescs[def.specialType];
+        this.infoPanel.appendChild(special);
+      }
+
+      if (def.splashRadius) {
+        const splash = document.createElement('div');
+        splash.style.cssText = `font-size:${fsSmall}px;color:#fa8;margin-top:4px;white-space:pre-line;line-height:1.5;`;
+        splash.textContent = `항성풍 스플래시: 반경 ${def.splashRadius}타일\n직격 100% / 범위 내 50% 피해`;
+        this.infoPanel.appendChild(splash);
+      }
+
+      // Lore description
+      if (def.descriptionKo) {
+        const lore = document.createElement('div');
+        lore.style.cssText = `font-size:${mob ? 9 : 10}px;color:#778;margin-top:6px;line-height:1.5;border-top:1px solid #223;padding-top:4px;`;
+        lore.textContent = def.descriptionKo;
+        this.infoPanel.appendChild(lore);
+      }
+
+      // Evolution tree with actual costs
+      const evo = EVOLUTION_TREE[this.selectedTowerId];
+      if (evo) {
+        const evoDiv = document.createElement('div');
+        evoDiv.style.cssText = `font-size:${fsSmall}px;color:#8af;margin-top:6px;border-top:1px solid #335;padding-top:4px;line-height:1.6;`;
+        let evoHtml = '<div style="color:#669;margin-bottom:2px;">진화</div>';
+        for (const p of evo.paths) {
+          const actualCost = Math.round(p.cost * (def.cost / 50));
+          evoHtml += `→ ${p.nameKo} <span style="color:#fff;">(${actualCost} ISM)</span> ${p.description}<br>`;
+        }
+        evoDiv.innerHTML = evoHtml;
+        this.infoPanel.appendChild(evoDiv);
+      }
+    } else if (this.selectedNebulaId) {
+      const def = NEBULA_DEFS[this.selectedNebulaId];
+      if (!def) return;
+
+      // Name + messier type
+      const header = document.createElement('div');
+      header.style.cssText = `font-size:${fs + 2}px;font-weight:bold;margin-bottom:6px;color:#eef;`;
+      header.textContent = `${def.nameKo} [${def.messierType}]`;
+      this.infoPanel.appendChild(header);
+
+      // Live shader preview (same GLSL as in-game)
+      const previewSize = mob ? 56 : 64;
+      const previewCanvas = createNebulaPreview(def.messierType, def.shaderColor, previewSize);
+      this.infoPanel.appendChild(previewCanvas);
+
+      // Effect description
+      const effectDescs: Record<string, string> = {
+        attack_buff: `공격력 +${Math.round(def.effectValue * 100)}%`,
+        homing: '투사체 유도',
+        slow: `감속 ${Math.round(def.effectValue * 100)}%`,
+        armor_debuff: `방어력 -${def.effectValue}`,
+        dot: `초당 ${def.effectValue} 피해`,
+      };
+      const effectText = effectDescs[def.effect] ?? def.effect;
+      const effectEl = document.createElement('div');
+      effectEl.style.cssText = `font-size:${fs}px;color:#aec;margin-bottom:6px;`;
+      effectEl.textContent = effectText;
+      this.infoPanel.appendChild(effectEl);
+
+      // Range + Cost
+      const statsEl = document.createElement('div');
+      statsEl.style.cssText = `font-size:${fs}px;color:#aab;line-height:1.8;`;
+      statsEl.innerHTML = `RNG: <span style="color:#fff;">${def.range}</span><br>COST: <span style="color:#fff;">${def.cost} ISM</span>`;
+      this.infoPanel.appendChild(statsEl);
+
+      // Placement rule
+      const placeNote = document.createElement('div');
+      placeNote.style.cssText = `font-size:${fsSmall}px;color:#886;margin-top:4px;`;
+      placeNote.textContent = '※ 경로 타일 위에만 배치 가능';
+      this.infoPanel.appendChild(placeNote);
+
+      // Stacking diminish info
+      if (def.effect !== 'homing') {
+        const stackEl = document.createElement('div');
+        stackEl.style.cssText = `font-size:${fsSmall}px;color:#997;margin-top:4px;border-top:1px solid #332;padding-top:4px;line-height:1.5;`;
+
+        if (def.effect === 'slow') {
+          const v = def.effectValue;
+          let mult = 1.0;
+          const rows: string[] = [];
+          for (let i = 0; i < 4; i++) {
+            const dim = 1 / (1 + i * 0.5);
+            mult *= (1.0 - v * dim);
+            const spd = Math.max(Math.round(mult * 100), 20);
+            rows.push(`${i + 1}개: 속도 ${spd}%`);
+          }
+          stackEl.innerHTML = `중첩 시 감속 (곱셈 적용, 하한 20%)<br><span style="color:#aab;">${rows.join(' → ')}</span>`;
+        } else {
+          const v = def.effectValue;
+          const rows: string[] = [];
+          for (let i = 0; i < 3; i++) {
+            const dim = 1 / (1 + i * 0.5);
+            const val = +(v * dim).toFixed(1);
+            const label = def.effect === 'attack_buff' ? `+${Math.round(val * 100)}%`
+              : def.effect === 'armor_debuff' ? `-${val}`
+              : `${val}`;
+            rows.push(`${i + 1}개: ${label}`);
+          }
+          stackEl.innerHTML = `중첩 시 효과 감쇠<br><span style="color:#aab;">${rows.join(' → ')} …</span>`;
+        }
+        this.infoPanel.appendChild(stackEl);
+      }
+
+      // Lore description
+      if (def.descriptionKo) {
+        const lore = document.createElement('div');
+        lore.style.cssText = `font-size:${mob ? 9 : 10}px;color:#778;margin-top:6px;line-height:1.5;border-top:1px solid #223;padding-top:4px;`;
+        lore.textContent = def.descriptionKo;
+        this.infoPanel.appendChild(lore);
+      }
+    }
+
+    this.infoPanel.style.visibility = 'visible';
   }
 
   private updateMutationPanel(mob: boolean) {
@@ -498,7 +678,7 @@ export class HUD {
   }
 
   dispose() {
-    this.tooltip.remove();
+    disposeNebulaPreview();
     this.container.remove();
   }
 }

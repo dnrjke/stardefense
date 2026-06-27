@@ -23,7 +23,7 @@ export const HEAT_DEATH_CONFIG = {
   waveRewardPerWave: 3,
   killRewardMultiplier: 0.5,
   spellGaugeMultiplier: 1.5,
-  availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar'],
+  availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar', 'wolf_rayet'],
   availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
 };
 
