@@ -1053,6 +1053,27 @@ export class FlowController {
       }
     });
 
+    // Build phase: evaluate synergies (no buffs applied, display only)
+    if (phase === 'build' && this.towerEngine.getTowers().length > 0) {
+      if (this.previewTowerId) {
+        const def = TOWER_DEFS[this.previewTowerId];
+        if (def) {
+          const preview = this.towerEngine.previewSynergies(def, this.previewRow, this.previewCol);
+          const current = this.towerEngine.evaluateSynergiesOnly();
+          const newIds = new Set(preview.map(s => s.id));
+          const curIds = new Set(current.map(s => s.id));
+          const names: string[] = [];
+          for (const s of preview) {
+            names.push(newIds.has(s.id) && !curIds.has(s.id) ? `+${s.nameKo}` : s.nameKo);
+          }
+          this.hud!.activeSynergyNames = names;
+        }
+      } else {
+        const synergies = this.towerEngine.evaluateSynergiesOnly();
+        this.hud!.activeSynergyNames = synergies.map(s => s.nameKo);
+      }
+    }
+
     if (phase === 'wave') {
       this.waveEngine.interpolate(alpha);
       this.towerEngine.interpolate(alpha);

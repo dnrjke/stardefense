@@ -238,9 +238,14 @@ export class HUD {
       const synergyBar = document.createElement('div');
       synergyBar.style.cssText = `display:flex;gap:4px;align-items:center;margin-left:${mob ? 4 : 8}px;flex-shrink:1;overflow:hidden;`;
       for (const name of this.activeSynergyNames) {
+        const isNew = name.startsWith('+');
+        const label = isNew ? name.slice(1) : name;
         const badge = document.createElement('span');
-        badge.textContent = name;
-        badge.style.cssText = `font-size:${mob ? 8 : 9}px;background:rgba(100,80,200,0.4);color:#c8b4ff;border:1px solid #8866cc;border-radius:3px;padding:1px 4px;white-space:nowrap;`;
+        badge.textContent = isNew ? `★${label}` : label;
+        const bg = isNew ? 'rgba(60,200,120,0.5)' : 'rgba(100,80,200,0.4)';
+        const fg = isNew ? '#8f6' : '#c8b4ff';
+        const border = isNew ? '#4a4' : '#8866cc';
+        badge.style.cssText = `font-size:${mob ? 8 : 9}px;background:${bg};color:${fg};border:1px solid ${border};border-radius:3px;padding:1px 4px;white-space:nowrap;`;
         synergyBar.appendChild(badge);
       }
       this.topBar.appendChild(synergyBar);

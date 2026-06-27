@@ -531,6 +531,17 @@ export class TowerEngine {
     return this.activeSynergies;
   }
 
+  evaluateSynergiesOnly(): ActiveSynergy[] {
+    this.activeSynergies = this.synergyEngine.evaluate(this.towers);
+    return this.activeSynergies;
+  }
+
+  previewSynergies(ghostDef: import('@/shared/data/TowerData').TowerDef, row: number, col: number): ActiveSynergy[] {
+    const ghost = { def: ghostDef, row, col, level: 1, evolvedFrom: undefined,
+      mesh: { position: this.mapEngine.tileToWorld(row, col) } } as any;
+    return this.synergyEngine.evaluate([...this.towers, ghost]);
+  }
+
   /** Update tower + projectile shader visuals each render frame */
   updateVisuals(dt: number) {
     for (const tower of this.towers) {
