@@ -54,7 +54,7 @@ export class RadialMenu {
 
     // Backdrop (click/tap to close)
     const backdrop = document.createElement('div');
-    backdrop.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
+    backdrop.style.cssText = `position:absolute;top:${mob ? 36 : 40}px;left:0;width:100%;height:calc(100% - ${mob ? 36 : 40}px);`;
     backdrop.onclick = (e) => {
       e.stopPropagation();
       if (Date.now() - this.showTime < 250) return;

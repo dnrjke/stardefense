@@ -110,9 +110,9 @@ export class HUD {
 
     // Synergy tooltip — toggled by clicking a badge
     this.synergyTooltip = document.createElement('div');
-    this.synergyTooltip.style.cssText = `position:absolute;top:${mob ? 38 : 44}px;left:50%;transform:translateX(-50%);background:rgba(10,5,30,0.92);border:1px solid #8866cc;border-radius:6px;padding:${mob ? '6px 10px' : '8px 14px'};font-size:${mob ? 10 : 11}px;color:#dcd;pointer-events:auto;display:none;z-index:20;max-width:${mob ? '80vw' : '320px'};line-height:1.5;white-space:pre-wrap;`;
+    this.synergyTooltip.style.cssText = `position:fixed;top:${mob ? 38 : 44}px;left:50%;transform:translateX(-50%);background:rgba(10,5,30,0.92);border:1px solid #8866cc;border-radius:6px;padding:${mob ? '6px 10px' : '8px 14px'};font-size:${mob ? 10 : 11}px;color:#dcd;font-family:monospace;pointer-events:auto;display:none;z-index:30;max-width:${mob ? '80vw' : '320px'};line-height:1.5;white-space:pre-wrap;`;
     this.synergyTooltip.onclick = () => { this.selectedSynergyId = null; this.synergyTooltip.style.display = 'none'; };
-    this.container.appendChild(this.synergyTooltip);
+    document.body.appendChild(this.synergyTooltip);
 
     // Wave preview — inline in top bar (no separate overlay)
     this.wavePreview = document.createElement('span');
