@@ -1044,7 +1044,9 @@ export class FlowController {
       if (phase === 'wave') {
         this.waveEngine!.fixedUpdate(this.fixedStep!.fixedDt);
         this.towerEngine!.fixedUpdate(this.fixedStep!.fixedDt, this.waveEngine!);
-        this.hud!.activeSynergyNames = this.towerEngine!.getActiveSynergies().map(s => s.nameKo);
+        const waveSynergies = this.towerEngine!.getActiveSynergies();
+        this.hud!.activeSynergyNames = waveSynergies.map(s => s.nameKo);
+        this.hud!.activeSynergyData = waveSynergies.map(s => ({ id: s.id, nameKo: s.nameKo, description: s.description }));
         if (this.nebulaEngine) {
           const enemies = this.waveEngine!.getAliveEnemies();
           this.nebulaEngine.applyDotDamage(enemies, this.fixedStep!.fixedDt);
@@ -1060,17 +1062,17 @@ export class FlowController {
         if (def) {
           const preview = this.towerEngine.previewSynergies(def, this.previewRow, this.previewCol);
           const current = this.towerEngine.evaluateSynergiesOnly();
-          const newIds = new Set(preview.map(s => s.id));
           const curIds = new Set(current.map(s => s.id));
-          const names: string[] = [];
-          for (const s of preview) {
-            names.push(newIds.has(s.id) && !curIds.has(s.id) ? `+${s.nameKo}` : s.nameKo);
-          }
-          this.hud!.activeSynergyNames = names;
+          this.hud!.activeSynergyNames = preview.map(s => curIds.has(s.id) ? s.nameKo : `+${s.nameKo}`);
+          this.hud!.activeSynergyData = preview.map(s => ({
+            id: s.id, nameKo: s.nameKo, description: s.description,
+            isNew: !curIds.has(s.id),
+          }));
         }
       } else {
         const synergies = this.towerEngine.evaluateSynergiesOnly();
         this.hud!.activeSynergyNames = synergies.map(s => s.nameKo);
+        this.hud!.activeSynergyData = synergies.map(s => ({ id: s.id, nameKo: s.nameKo, description: s.description }));
       }
     }
 

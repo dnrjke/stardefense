@@ -48,7 +48,10 @@ export class HUD {
   isHeatDeath = false;
   activeMutationNames: string[] = [];
   activeSynergyNames: string[] = [];
+  activeSynergyData: { id: string; nameKo: string; description: string; isNew?: boolean }[] = [];
   crisisWarning: string | null = null;
+  private selectedSynergyId: string | null = null;
+  private synergyTooltip!: HTMLDivElement;
   onTowerSelected: ((towerId: string | null) => void) | null = null;
   onNebulaSelected: ((nebulaId: string | null) => void) | null = null;
   onStartWave: (() => void) | null = null;
@@ -104,6 +107,12 @@ export class HUD {
       document.head.appendChild(style);
     }
     this.infoPanel.classList.add('hide-scrollbar');
+
+    // Synergy tooltip — toggled by clicking a badge
+    this.synergyTooltip = document.createElement('div');
+    this.synergyTooltip.style.cssText = `position:absolute;top:${mob ? 38 : 44}px;left:50%;transform:translateX(-50%);background:rgba(10,5,30,0.92);border:1px solid #8866cc;border-radius:6px;padding:${mob ? '6px 10px' : '8px 14px'};font-size:${mob ? 10 : 11}px;color:#dcd;pointer-events:auto;display:none;z-index:20;max-width:${mob ? '80vw' : '320px'};line-height:1.5;white-space:pre-wrap;`;
+    this.synergyTooltip.onclick = () => { this.selectedSynergyId = null; this.synergyTooltip.style.display = 'none'; };
+    this.container.appendChild(this.synergyTooltip);
 
     // Wave preview — inline in top bar (no separate overlay)
     this.wavePreview = document.createElement('span');
@@ -234,21 +243,44 @@ export class HUD {
     }
 
     // Active synergy badges
-    if (this.activeSynergyNames.length > 0) {
+    const synergySource = this.activeSynergyData.length > 0 ? this.activeSynergyData : null;
+    if (synergySource && synergySource.length > 0) {
       const synergyBar = document.createElement('div');
       synergyBar.style.cssText = `display:flex;gap:4px;align-items:center;margin-left:${mob ? 4 : 8}px;flex-shrink:1;overflow:hidden;`;
-      for (const name of this.activeSynergyNames) {
-        const isNew = name.startsWith('+');
-        const label = isNew ? name.slice(1) : name;
+      for (const syn of synergySource) {
+        const isNew = syn.isNew ?? false;
+        const selected = this.selectedSynergyId === syn.id;
         const badge = document.createElement('span');
-        badge.textContent = isNew ? `★${label}` : label;
-        const bg = isNew ? 'rgba(60,200,120,0.5)' : 'rgba(100,80,200,0.4)';
-        const fg = isNew ? '#8f6' : '#c8b4ff';
-        const border = isNew ? '#4a4' : '#8866cc';
-        badge.style.cssText = `font-size:${mob ? 8 : 9}px;background:${bg};color:${fg};border:1px solid ${border};border-radius:3px;padding:1px 4px;white-space:nowrap;`;
+        badge.textContent = isNew ? `★${syn.nameKo}` : syn.nameKo;
+        const bg = selected ? 'rgba(140,120,255,0.7)' : isNew ? 'rgba(60,200,120,0.5)' : 'rgba(100,80,200,0.4)';
+        const fg = selected ? '#fff' : isNew ? '#8f6' : '#c8b4ff';
+        const border = selected ? '#aaf' : isNew ? '#4a4' : '#8866cc';
+        badge.style.cssText = `font-size:${mob ? 8 : 9}px;background:${bg};color:${fg};border:1px solid ${border};border-radius:3px;padding:1px 4px;white-space:nowrap;cursor:pointer;`;
+        badge.onclick = (e) => {
+          e.stopPropagation();
+          if (this.selectedSynergyId === syn.id) {
+            this.selectedSynergyId = null;
+            this.synergyTooltip.style.display = 'none';
+          } else {
+            this.selectedSynergyId = syn.id;
+            this.synergyTooltip.innerHTML = `<div style="color:${isNew ? '#8f6' : '#c8b4ff'};font-weight:bold;margin-bottom:4px;">${syn.nameKo}</div><div style="color:#aab;">${syn.description}</div>`;
+            this.synergyTooltip.style.display = 'block';
+          }
+          this.render();
+        };
         synergyBar.appendChild(badge);
       }
       this.topBar.appendChild(synergyBar);
+    } else {
+      if (this.selectedSynergyId) {
+        this.selectedSynergyId = null;
+        this.synergyTooltip.style.display = 'none';
+      }
+    }
+    // Hide tooltip if selected synergy no longer active
+    if (this.selectedSynergyId && synergySource && !synergySource.some(s => s.id === this.selectedSynergyId)) {
+      this.selectedSynergyId = null;
+      this.synergyTooltip.style.display = 'none';
     }
 
     const speedBtn = document.createElement('button');
