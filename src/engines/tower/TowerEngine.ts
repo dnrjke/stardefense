@@ -34,6 +34,7 @@ export class TowerEngine {
   private specialTimers = new Map<TowerEntity, number>();
   private synergyEngine = new SynergyEngine();
   private activeSynergies: ActiveSynergy[] = [];
+  private _synergyDirty = true;
 
   onEnemyHit: ((enemy: EnemyEntity, damage: number) => void) | null = null;
   onBetelgeuseExplode: ((tower: TowerEntity) => void) | null = null;
@@ -53,6 +54,7 @@ export class TowerEngine {
     const tower = new TowerEntity(this.scene, def, worldPos, row, col);
     this.towers.push(tower);
     this.mapEngine.markOccupied(row, col);
+    this._synergyDirty = true;
     return tower;
   }
 
@@ -94,8 +96,11 @@ export class TowerEngine {
       (tower as any)._trinaryMultiTarget = false;
     }
 
-    // Evaluate synergies
-    this.activeSynergies = this.synergyEngine.evaluate(this.towers);
+    // Evaluate synergies (only when tower layout changes)
+    if (this._synergyDirty) {
+      this.activeSynergies = this.synergyEngine.evaluate(this.towers);
+      this._synergyDirty = false;
+    }
 
     // Apply synergy buffs
     for (const syn of this.activeSynergies) {
@@ -498,6 +503,7 @@ export class TowerEngine {
     const newDef = computeEvolvedDef(tower.def, evolutionId);
     const newLevel = (evolutions.level ?? tower.level) + 1;
     tower.evolve(newDef, newLevel);
+    this._synergyDirty = true;
     return true;
   }
 
@@ -511,6 +517,7 @@ export class TowerEngine {
     this.mapEngine.markBuildable(tower.row, tower.col);
     tower.dispose();
     this.towers.splice(idx, 1);
+    this._synergyDirty = true;
   }
 
   sellTower(tower: TowerEntity): number {

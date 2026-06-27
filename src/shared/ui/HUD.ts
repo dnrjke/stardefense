@@ -6,7 +6,7 @@ import { ENEMY_DEFS } from '@/shared/data/EnemyData';
 import type { WaveDef } from '@/shared/data/WaveData';
 import { EVOLUTION_TREE, getEvolutions } from '@/engines/tower/EvolutionSystem';
 import { ciToRgb } from '@/shared/data/ColorUtil';
-import { createNebulaPreview, createTowerPreview, disposeNebulaPreview } from '@/shared/ui/NebulaPreview';
+import { createNebulaPreview, createTowerPreview, disposeNebulaPreview, preloadPreviewShaders } from '@/shared/ui/NebulaPreview';
 
 /** Detect mobile landscape: narrow height + touch support */
 function isMobileLandscape(): boolean {
@@ -172,6 +172,9 @@ export class HUD {
 
     // Re-render on orientation / resize changes
     window.addEventListener('resize', () => this.render());
+
+    // Preload shader programs for instant preview rendering
+    preloadPreviewShaders();
 
     this.render();
   }
@@ -388,13 +391,23 @@ export class HUD {
     }
   }
 
+  private _lastInfoKey: string | null = null;
+
   private updateInfoPanel(mob: boolean) {
-    disposeNebulaPreview();
-    if (!this.selectedTowerId && !this.selectedNebulaId) {
-      this.infoPanel.style.display = 'none';
-      this.infoPanel.innerHTML = '';
+    const infoKey = this.selectedTowerId ?? this.selectedNebulaId ?? null;
+    if (!infoKey) {
+      if (this._lastInfoKey !== null) {
+        disposeNebulaPreview();
+        this.infoPanel.style.display = 'none';
+        this.infoPanel.innerHTML = '';
+        this._lastInfoKey = null;
+      }
       return;
     }
+    if (infoKey === this._lastInfoKey) return;
+    this._lastInfoKey = infoKey;
+
+    disposeNebulaPreview();
     this.infoPanel.style.visibility = 'hidden';
     this.infoPanel.style.display = 'block';
     this.infoPanel.style.width = mob ? '140px' : '180px';

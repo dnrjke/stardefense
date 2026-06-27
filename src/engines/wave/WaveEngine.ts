@@ -70,6 +70,7 @@ export class WaveEngine {
             enemy.speed *= this.speedMultiplier;
           }
           this.enemies.push(enemy);
+          this._aliveDirty = true;
         }
         ss.remaining--;
       }
@@ -82,8 +83,15 @@ export class WaveEngine {
       if (reachedEnd) {
         enemy.alive = false;
         enemy.dispose();
+        this._aliveDirty = true;
         this.onEnemyReachedEnd?.(enemy);
       }
+    }
+
+    // Prune dead enemies periodically to prevent array growth
+    if (this.enemies.length > 50) {
+      this.enemies = this.enemies.filter(e => e.alive);
+      this._aliveDirty = true;
     }
 
     if (this.allSpawned && this.enemies.every(e => !e.alive)) {
@@ -104,8 +112,17 @@ export class WaveEngine {
     }
   }
 
+  private _aliveCache: EnemyEntity[] = [];
+  private _aliveDirty = true;
+
+  markAliveDirty() { this._aliveDirty = true; }
+
   getAliveEnemies(): EnemyEntity[] {
-    return this.enemies.filter(e => e.alive);
+    if (this._aliveDirty) {
+      this._aliveCache = this.enemies.filter(e => e.alive);
+      this._aliveDirty = false;
+    }
+    return this._aliveCache;
   }
 
   killEnemy(enemy: EnemyEntity, damage: number): boolean {
@@ -113,6 +130,7 @@ export class WaveEngine {
     const deathPos = enemy.position.clone();
     const killed = enemy.takeDamage(damage);
     if (killed) {
+      this._aliveDirty = true;
       if (wasSplitter && enemy.hasSplit) {
         this.spawnSplitCopies(enemy);
       }

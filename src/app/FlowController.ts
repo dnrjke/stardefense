@@ -1044,9 +1044,6 @@ export class FlowController {
       if (phase === 'wave') {
         this.waveEngine!.fixedUpdate(this.fixedStep!.fixedDt);
         this.towerEngine!.fixedUpdate(this.fixedStep!.fixedDt, this.waveEngine!);
-        const waveSynergies = this.towerEngine!.getActiveSynergies();
-        this.hud!.activeSynergyNames = waveSynergies.map(s => s.nameKo);
-        this.hud!.activeSynergyData = waveSynergies.map(s => ({ id: s.id, nameKo: s.nameKo, description: s.description }));
         if (this.nebulaEngine) {
           const enemies = this.waveEngine!.getAliveEnemies();
           this.nebulaEngine.applyDotDamage(enemies, this.fixedStep!.fixedDt);
@@ -1054,6 +1051,13 @@ export class FlowController {
         this.gameStore!.getState().tickCooldowns(this.fixedStep!.fixedDt);
       }
     });
+
+    // Update HUD synergy display (once per render frame, not per tick)
+    if (phase === 'wave') {
+      const waveSynergies = this.towerEngine.getActiveSynergies();
+      this.hud!.activeSynergyNames = waveSynergies.map(s => s.nameKo);
+      this.hud!.activeSynergyData = waveSynergies.map(s => ({ id: s.id, nameKo: s.nameKo, description: s.description }));
+    }
 
     // Build phase: evaluate synergies (no buffs applied, display only)
     if (phase === 'build' && this.towerEngine.getTowers().length > 0) {

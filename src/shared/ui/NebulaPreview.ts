@@ -3,6 +3,9 @@
  * Uses raw WebGL2 to avoid creating a second Babylon engine.
  * Tower preview: sphere with FBM + NdotV limb darkening (same as in-game towerStar shader)
  * Nebula preview: disc with per-type GLSL (same as in-game NebulaEntity shaders)
+ *
+ * Optimization: single shared WebGL2 context, compiled shader programs cached,
+ * preload support for warming the cache before the info panel opens.
  */
 
 const VERT = `#version 300 es
@@ -207,16 +210,47 @@ const NEBULA_FRAG_MAP: Record<string, string> = {
   supernova_remnant: FRAG_SUPERNOVA,
 };
 
-// ── Preview rendering engine ──
+// ── Shared WebGL2 context + shader program cache ──
 
-interface PreviewState {
-  gl: WebGL2RenderingContext;
+interface CachedProgram {
   program: WebGLProgram;
   uTimeLoc: WebGLUniformLocation;
-  animId: number;
+  uColorLoc: WebGLUniformLocation;
+  uSeedLoc: WebGLUniformLocation | null;
 }
 
-let currentPreview: PreviewState | null = null;
+let sharedGl: WebGL2RenderingContext | null = null;
+let sharedCanvas: HTMLCanvasElement | null = null;
+let sharedVao: WebGLVertexArrayObject | null = null;
+const programCache = new Map<string, CachedProgram>();
+let activeAnimId = 0;
+let activeKey: string | null = null;
+
+function getSharedGl(): WebGL2RenderingContext | null {
+  if (sharedGl) return sharedGl;
+
+  sharedCanvas = document.createElement('canvas');
+  sharedCanvas.style.display = 'none';
+  document.body.appendChild(sharedCanvas);
+
+  const gl = sharedCanvas.getContext('webgl2', { alpha: true, premultipliedAlpha: false });
+  if (!gl) return null;
+  sharedGl = gl;
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+
+  // Shared full-screen quad VAO
+  sharedVao = gl.createVertexArray()!;
+  gl.bindVertexArray(sharedVao);
+  const buf = gl.createBuffer()!;
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+  return gl;
+}
 
 function compileShader(gl: WebGL2RenderingContext, src: string, type: number): WebGLShader {
   const s = gl.createShader(type)!;
@@ -225,7 +259,34 @@ function compileShader(gl: WebGL2RenderingContext, src: string, type: number): W
   return s;
 }
 
+function getOrCompileProgram(gl: WebGL2RenderingContext, fragKey: string, fragSrc: string): CachedProgram {
+  const cached = programCache.get(fragKey);
+  if (cached) return cached;
+
+  const vs = compileShader(gl, VERT, gl.VERTEX_SHADER);
+  const fs = compileShader(gl, fragSrc, gl.FRAGMENT_SHADER);
+  const prog = gl.createProgram()!;
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+  gl.bindAttribLocation(prog, 0, 'aPos');
+  gl.linkProgram(prog);
+  gl.deleteShader(vs);
+  gl.deleteShader(fs);
+
+  const entry: CachedProgram = {
+    program: prog,
+    uTimeLoc: gl.getUniformLocation(prog, 'uTime')!,
+    uColorLoc: gl.getUniformLocation(prog, 'uColor')!,
+    uSeedLoc: gl.getUniformLocation(prog, 'uSeed'),
+  };
+  programCache.set(fragKey, entry);
+  return entry;
+}
+
+// ── Preview rendering ──
+
 function createPreviewCanvas(
+  fragKey: string,
   fragSrc: string,
   color: [number, number, number],
   size: number,
@@ -234,67 +295,53 @@ function createPreviewCanvas(
 ): HTMLCanvasElement {
   disposePreview();
 
-  const canvas = document.createElement('canvas');
-  canvas.width = size * 2;
-  canvas.height = size * 2;
-  canvas.style.cssText = `width:${size}px;height:${size}px;display:block;margin:0 auto 8px;border-radius:50%;`;
+  const displayCanvas = document.createElement('canvas');
+  displayCanvas.width = size * 2;
+  displayCanvas.height = size * 2;
+  displayCanvas.style.cssText = `width:${size}px;height:${size}px;display:block;margin:0 auto 8px;border-radius:50%;`;
 
-  const gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: false })!;
-  if (!gl) return canvas;
+  const gl = getSharedGl();
+  if (!gl) return displayCanvas;
 
-  gl.viewport(0, 0, canvas.width, canvas.height);
+  sharedCanvas!.width = size * 2;
+  sharedCanvas!.height = size * 2;
+  gl.viewport(0, 0, size * 2, size * 2);
+
+  const prog = getOrCompileProgram(gl, fragKey, fragSrc);
+  gl.useProgram(prog.program);
+  gl.bindVertexArray(sharedVao);
+  gl.uniform3f(prog.uColorLoc, color[0], color[1], color[2]);
+  if (prog.uSeedLoc) gl.uniform1f(prog.uSeedLoc, seed);
+
   if (darkBg) {
     gl.clearColor(0.02, 0.02, 0.05, 1.0);
   } else {
     gl.clearColor(0, 0, 0, 0);
   }
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
 
-  const vs = compileShader(gl, VERT, gl.VERTEX_SHADER);
-  const fs = compileShader(gl, fragSrc, gl.FRAGMENT_SHADER);
-
-  const prog = gl.createProgram()!;
-  gl.attachShader(prog, vs);
-  gl.attachShader(prog, fs);
-  gl.linkProgram(prog);
-  gl.useProgram(prog);
-
-  const quad = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
-  const buf = gl.createBuffer()!;
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
-
-  const aPos = gl.getAttribLocation(prog, 'aPos');
-  gl.enableVertexAttribArray(aPos);
-  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
-
-  const uTimeLoc = gl.getUniformLocation(prog, 'uTime')!;
-  const uColorLoc = gl.getUniformLocation(prog, 'uColor')!;
-  const uSeedLoc = gl.getUniformLocation(prog, 'uSeed');
-  gl.uniform3f(uColorLoc, color[0], color[1], color[2]);
-  if (uSeedLoc) gl.uniform1f(uSeedLoc, seed);
-
+  const displayCtx = displayCanvas.getContext('2d')!;
+  activeKey = fragKey;
   let t = seed * 3.7;
+
   const animate = () => {
     t += 0.016;
     gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.uniform1f(uTimeLoc, t);
+    gl.uniform1f(prog.uTimeLoc, t);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    currentPreview!.animId = requestAnimationFrame(animate);
+    displayCtx.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
+    displayCtx.drawImage(sharedCanvas!, 0, 0);
+    activeAnimId = requestAnimationFrame(animate);
   };
+  activeAnimId = requestAnimationFrame(animate);
 
-  currentPreview = { gl, program: prog, uTimeLoc, animId: 0 };
-  currentPreview.animId = requestAnimationFrame(animate);
-
-  return canvas;
+  return displayCanvas;
 }
 
 export function createTowerPreview(
   color: [number, number, number],
   size: number,
 ): HTMLCanvasElement {
-  return createPreviewCanvas(FRAG_TOWER, color, size, Math.random() * 10, false);
+  return createPreviewCanvas('tower', FRAG_TOWER, color, size, Math.random() * 10, false);
 }
 
 export function createNebulaPreview(
@@ -303,7 +350,7 @@ export function createNebulaPreview(
   size: number,
 ): HTMLCanvasElement {
   const fragSrc = NEBULA_FRAG_MAP[messierType] ?? FRAG_EMISSION;
-  return createPreviewCanvas(fragSrc, color, size, 0, true);
+  return createPreviewCanvas(messierType, fragSrc, color, size, 0, true);
 }
 
 export function disposeNebulaPreview() {
@@ -311,10 +358,23 @@ export function disposeNebulaPreview() {
 }
 
 function disposePreview() {
-  if (currentPreview) {
-    cancelAnimationFrame(currentPreview.animId);
-    const ext = currentPreview.gl.getExtension('WEBGL_lose_context');
-    if (ext) ext.loseContext();
-    currentPreview = null;
+  if (activeAnimId) {
+    cancelAnimationFrame(activeAnimId);
+    activeAnimId = 0;
+    activeKey = null;
+  }
+}
+
+/**
+ * Preload shader programs so they're compiled and ready when the info panel opens.
+ * Call once after the game scene is initialized.
+ */
+export function preloadPreviewShaders() {
+  const gl = getSharedGl();
+  if (!gl) return;
+
+  getOrCompileProgram(gl, 'tower', FRAG_TOWER);
+  for (const [key, src] of Object.entries(NEBULA_FRAG_MAP)) {
+    getOrCompileProgram(gl, key, src);
   }
 }
