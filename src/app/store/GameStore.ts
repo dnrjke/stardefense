@@ -19,6 +19,12 @@ export interface GameState {
   enemiesKilled: number;
   towersPlaced: number;
   survivalCycle: number;
+  activeMutations: string[];
+  heatDeathWave: number;
+  heatDeathStartTime: number;
+  isHeatDeath: boolean;
+  entropyPermanent: boolean;
+  buildShrinkLevel: number;
 
   setPhase: (phase: GamePhase) => void;
   addIsm: (amount: number) => void;
@@ -34,6 +40,10 @@ export interface GameState {
   incrementEnemiesKilled: () => void;
   incrementTowersPlaced: () => void;
   incrementSurvivalCycle: () => void;
+  addMutation: (id: string) => void;
+  setHeatDeathMode: (enabled: boolean) => void;
+  setEntropyPermanent: () => void;
+  incrementBuildShrink: () => void;
   reset: () => void;
 }
 
@@ -55,6 +65,12 @@ export function createGameStore(totalWaves: number) {
     enemiesKilled: 0,
     towersPlaced: 0,
     survivalCycle: 0,
+    activeMutations: [],
+    heatDeathWave: 0,
+    heatDeathStartTime: 0,
+    isHeatDeath: false,
+    entropyPermanent: false,
+    buildShrinkLevel: 0,
 
     setPhase: (phase) => set({ phase }),
 
@@ -114,6 +130,20 @@ export function createGameStore(totalWaves: number) {
     incrementTowersPlaced: () => set((s) => ({ towersPlaced: s.towersPlaced + 1 })),
     incrementSurvivalCycle: () => set((s) => ({ survivalCycle: s.survivalCycle + 1 })),
 
+    addMutation: (id) => set((s) => ({
+      activeMutations: s.activeMutations.includes(id) ? s.activeMutations : [...s.activeMutations, id],
+    })),
+
+    setHeatDeathMode: (enabled) => set({
+      isHeatDeath: enabled,
+      heatDeathWave: 0,
+      heatDeathStartTime: enabled ? Date.now() : 0,
+    }),
+
+    setEntropyPermanent: () => set({ entropyPermanent: true }),
+
+    incrementBuildShrink: () => set((s) => ({ buildShrinkLevel: s.buildShrinkLevel + 1 })),
+
     reset: () => set({
       phase: 'build',
       ism: INITIAL_ISM,
@@ -126,6 +156,12 @@ export function createGameStore(totalWaves: number) {
       enemiesKilled: 0,
       towersPlaced: 0,
       survivalCycle: 0,
+      activeMutations: [],
+      heatDeathWave: 0,
+      heatDeathStartTime: 0,
+      isHeatDeath: false,
+      entropyPermanent: false,
+      buildShrinkLevel: 0,
     }),
   }));
 }

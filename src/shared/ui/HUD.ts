@@ -35,9 +35,14 @@ export class HUD {
   private spellGaugeLabel!: HTMLDivElement;
   private spellButtons: Map<string, HTMLButtonElement> = new Map();
   private spellCdLabels: Map<string, HTMLSpanElement> = new Map();
+  private mutationPanel!: HTMLDivElement;
+  private crisisBanner!: HTMLDivElement;
   availableNebulae: string[] = [];
   currentWaves: WaveDef[] = [];
   isSurvival = false;
+  isHeatDeath = false;
+  activeMutationNames: string[] = [];
+  crisisWarning: string | null = null;
   onTowerSelected: ((towerId: string | null) => void) | null = null;
   onNebulaSelected: ((nebulaId: string | null) => void) | null = null;
   onStartWave: (() => void) | null = null;
@@ -121,6 +126,17 @@ export class HUD {
     }
     this.container.appendChild(this.spellPanel);
 
+    // Mutation display panel (heat death mode)
+    this.mutationPanel = document.createElement('div');
+    const mutRight = mob ? `calc(8px + ${safeInset('right')})` : '12px';
+    this.mutationPanel.style.cssText = `position:absolute;right:${mutRight};top:${mob ? '140px' : '200px'};display:none;flex-direction:column;gap:3px;pointer-events:none;max-width:${mob ? '80px' : '120px'};`;
+    this.container.appendChild(this.mutationPanel);
+
+    // Crisis warning banner (heat death mode)
+    this.crisisBanner = document.createElement('div');
+    this.crisisBanner.style.cssText = `position:absolute;top:${mob ? '36px' : '40px'};left:50%;transform:translateX(-50%);background:rgba(80,0,0,0.85);border:1px solid #f44;padding:${mob ? '4px 12px' : '6px 16px'};border-radius:6px;font-size:${mob ? 11 : 13}px;color:#f88;text-align:center;pointer-events:none;display:none;white-space:nowrap;text-shadow:0 0 8px rgba(255,60,60,0.4);`;
+    this.container.appendChild(this.crisisBanner);
+
     // Re-render on orientation / resize changes
     window.addEventListener('resize', () => this.render());
 
@@ -148,13 +164,21 @@ export class HUD {
 
     const info = document.createElement('span');
     info.style.cssText = mob ? 'font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' : '';
-    const waveDisplay = this.isSurvival
-      ? `WAVE ${state.currentWave} (Cycle ${state.survivalCycle + 1})`
-      : `WAVE ${state.currentWave}/${state.totalWaves}`;
-    if (mob) {
-      info.innerHTML = `W${state.currentWave}${this.isSurvival ? '' : '/' + state.totalWaves} ISM:${state.ism} HP:${state.baseHp}`;
+    if (this.isHeatDeath) {
+      if (mob) {
+        info.innerHTML = `W${state.currentWave} ISM:${state.ism} HP:${state.baseHp}`;
+      } else {
+        info.innerHTML = `WAVE ${state.currentWave} &nbsp; ISM: ${state.ism} &nbsp; BASE HP: ${state.baseHp}`;
+      }
     } else {
-      info.innerHTML = `${waveDisplay} &nbsp; ISM: ${state.ism} &nbsp; BASE HP: ${state.baseHp}/${state.maxBaseHp}`;
+      const waveDisplay = this.isSurvival
+        ? `WAVE ${state.currentWave} (Cycle ${state.survivalCycle + 1})`
+        : `WAVE ${state.currentWave}/${state.totalWaves}`;
+      if (mob) {
+        info.innerHTML = `W${state.currentWave}${this.isSurvival ? '' : '/' + state.totalWaves} ISM:${state.ism} HP:${state.baseHp}`;
+      } else {
+        info.innerHTML = `${waveDisplay} &nbsp; ISM: ${state.ism} &nbsp; BASE HP: ${state.baseHp}/${state.maxBaseHp}`;
+      }
     }
     this.topBar.appendChild(info);
 
@@ -240,6 +264,10 @@ export class HUD {
       this.bottomBar.appendChild(btn);
     }
 
+    // Heat death: mutation display + crisis banner
+    this.updateMutationPanel(mob);
+    this.updateCrisisBanner();
+
     // Nebula separator (only if nebulae available)
     if (this.availableNebulae.length > 0) {
       const nebSep = document.createElement('div');
@@ -293,6 +321,93 @@ export class HUD {
       btn.style.cursor = canCast ? 'pointer' : 'default';
       btn.onclick = canCast ? () => this.onCastSpell?.(sid) : null;
     }
+  }
+
+  private updateMutationPanel(mob: boolean) {
+    if (!this.isHeatDeath || this.activeMutationNames.length === 0) {
+      this.mutationPanel.style.display = 'none';
+      return;
+    }
+    this.mutationPanel.style.display = 'flex';
+    this.mutationPanel.innerHTML = '';
+
+    const label = document.createElement('div');
+    label.textContent = '돌연변이';
+    label.style.cssText = `font-size:${mob ? 8 : 9}px;color:#f8d;text-align:right;margin-bottom:2px;`;
+    this.mutationPanel.appendChild(label);
+
+    for (const name of this.activeMutationNames) {
+      const tag = document.createElement('div');
+      tag.textContent = name;
+      tag.style.cssText = `font-size:${mob ? 9 : 10}px;color:#c8a;background:rgba(255,100,200,0.1);border:1px solid rgba(255,100,200,0.3);border-radius:3px;padding:1px 4px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+      this.mutationPanel.appendChild(tag);
+    }
+  }
+
+  private updateCrisisBanner() {
+    if (!this.crisisWarning) {
+      this.crisisBanner.style.display = 'none';
+      return;
+    }
+    this.crisisBanner.textContent = this.crisisWarning;
+    this.crisisBanner.style.display = 'block';
+  }
+
+  setCrisisWarning(text: string | null) {
+    this.crisisWarning = text;
+    this.updateCrisisBanner();
+  }
+
+  setActiveMutations(names: string[]) {
+    this.activeMutationNames = names;
+  }
+
+  showHeatDeathEndScreen(wave: number, kills: number, mutations: string[], bestWave: number, isNewBest: boolean) {
+    const mob = isMobileLandscape();
+    this.endScreen.style.display = 'flex';
+    this.endScreen.innerHTML = '';
+
+    const title = document.createElement('div');
+    title.textContent = '열사의 장 — 종료';
+    title.style.cssText = `font-size:${mob ? 20 : 28}px;margin-bottom:${mob ? 8 : 16}px;color:#f8d;text-shadow:0 0 20px rgba(255,100,200,0.4);`;
+    this.endScreen.appendChild(title);
+
+    const stats = document.createElement('div');
+    stats.style.cssText = `font-size:${mob ? 12 : 14}px;color:#aab;margin-bottom:${mob ? 12 : 20}px;text-align:center;line-height:2;`;
+    stats.innerHTML = `도달 웨이브: <span style="color:#fff;font-size:${mob ? 16 : 20}px;font-weight:bold;">${wave}</span><br>적 처치: ${kills}<br>돌연변이: ${mutations.length}개`;
+    if (isNewBest) {
+      stats.innerHTML += `<br><span style="color:#ff4;font-weight:bold;">★ 신기록! ★</span>`;
+    } else {
+      stats.innerHTML += `<br>최고 기록: ${bestWave} 웨이브`;
+    }
+    this.endScreen.appendChild(stats);
+
+    if (mutations.length > 0) {
+      const mutList = document.createElement('div');
+      mutList.style.cssText = `font-size:${mob ? 10 : 11}px;color:#c8a;margin-bottom:${mob ? 12 : 20}px;text-align:center;line-height:1.6;`;
+      mutList.textContent = mutations.join(', ');
+      this.endScreen.appendChild(mutList);
+    }
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:16px;';
+    const endBtnPad = mob ? '10px 20px' : '10px 24px';
+    const endBtnFont = mob ? 13 : 14;
+    const endBtnMinH = mob ? 'min-height:44px;' : '';
+
+    const retryBtn = document.createElement('button');
+    retryBtn.textContent = '재도전';
+    retryBtn.style.cssText = `background:#335;color:#aaf;border:1px solid #558;padding:${endBtnPad};cursor:pointer;font-family:monospace;font-size:${endBtnFont}px;border-radius:4px;${endBtnMinH}`;
+    retryBtn.onclick = () => this.onRestart?.();
+    btnRow.appendChild(retryBtn);
+
+    const backBtn = document.createElement('button');
+    backBtn.textContent = '맵 선택';
+    backBtn.style.cssText = `background:#322;color:#a88;border:1px solid #544;padding:${endBtnPad};cursor:pointer;font-family:monospace;font-size:${endBtnFont}px;border-radius:4px;${endBtnMinH}`;
+    backBtn.onclick = () => this.onBack?.();
+    btnRow.appendChild(backBtn);
+
+    this.endScreen.appendChild(btnRow);
   }
 
   showEndScreen(victory: boolean, _mapId?: string) {

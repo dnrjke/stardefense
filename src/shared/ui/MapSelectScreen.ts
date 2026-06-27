@@ -23,6 +23,10 @@ const ACT_TITLES: Record<number, { title: string; subtitle: string }> = {
     title: 'ACT 4 — 열적 죽음 (Heat Death)',
     subtitle: '엔트로피가 우주의 종말을 선언한다',
   },
+  5: {
+    title: '도전 — 열사의 장',
+    subtitle: '무한히 강해지는 적을 최대한 오래 버텨라',
+  },
 };
 
 export class MapSelectScreen {
@@ -80,7 +84,7 @@ export class MapSelectScreen {
     this.container.appendChild(content);
 
     // Render each act section
-    for (const actNum of [1, 2, 3, 4]) {
+    for (const actNum of [1, 2, 3, 4, 5]) {
       const act = ACT_TITLES[actNum];
       if (!act) continue;
       const actMaps = state.getActMaps(actNum);
@@ -93,14 +97,15 @@ export class MapSelectScreen {
       const titleBlock = document.createElement('div');
       titleBlock.style.cssText = `text-align:center;margin-bottom:${mob ? 12 : 28}px;`;
 
+      const isChallenge = actNum === 5;
       const title = document.createElement('div');
       title.textContent = act.title;
-      title.style.cssText = `font-size:${mob ? 16 : 24}px;font-weight:bold;letter-spacing:${mob ? 3 : 6}px;color:#c8d8ff;text-shadow:0 0 20px rgba(100,140,255,0.4);margin-bottom:${mob ? 4 : 8}px;`;
+      title.style.cssText = `font-size:${mob ? 16 : 24}px;font-weight:bold;letter-spacing:${mob ? 3 : 6}px;color:${isChallenge ? '#f8d' : '#c8d8ff'};text-shadow:0 0 20px ${isChallenge ? 'rgba(255,100,200,0.4)' : 'rgba(100,140,255,0.4)'};margin-bottom:${mob ? 4 : 8}px;`;
       titleBlock.appendChild(title);
 
       const subtitle = document.createElement('div');
       subtitle.textContent = `"${act.subtitle}"`;
-      subtitle.style.cssText = `font-size:${mob ? 11 : 13}px;color:#6678aa;font-style:italic;letter-spacing:${mob ? 1 : 2}px;`;
+      subtitle.style.cssText = `font-size:${mob ? 11 : 13}px;color:${isChallenge ? '#a678aa' : '#6678aa'};font-style:italic;letter-spacing:${mob ? 1 : 2}px;`;
       titleBlock.appendChild(subtitle);
 
       actSection.appendChild(titleBlock);

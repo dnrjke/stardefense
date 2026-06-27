@@ -370,3 +370,69 @@ export const MAP_4_B_WAVES: WaveDef[] = [
   { spawns: [{ enemyId: 'antimatter_storm', count: 5, interval: 1.5, delay: 0 }, { enemyId: 'quasar', count: 8, interval: 0.8, delay: 1 }, { enemyId: 'grb', count: 5, interval: 1.2, delay: 2 }, { enemyId: 'dark_matter', count: 25, interval: 0.2, delay: 3 }], reward: 450 },
   { spawns: [{ enemyId: 'entropy', count: 1, interval: 1, delay: 0 }, { enemyId: 'antimatter_storm', count: 4, interval: 2.0, delay: 3 }, { enemyId: 'quasar', count: 6, interval: 1.0, delay: 2 }, { enemyId: 'grb', count: 4, interval: 1.5, delay: 4 }, { enemyId: 'dark_matter', count: 20, interval: 0.3, delay: 1 }], reward: 600 },
 ];
+
+export const HEAT_DEATH_BASE_WAVES: WaveDef[] = [
+  {
+    spawns: [
+      { enemyId: 'asteroid', count: 8, interval: 1.0, delay: 0, pathIndex: 0 },
+      { enemyId: 'comet', count: 5, interval: 0.8, delay: 2, pathIndex: 1 },
+    ],
+    reward: 25,
+  },
+  {
+    spawns: [
+      { enemyId: 'asteroid', count: 6, interval: 0.8, delay: 0, pathIndex: 0 },
+      { enemyId: 'asteroid', count: 6, interval: 0.8, delay: 0, pathIndex: 1 },
+      { enemyId: 'comet', count: 4, interval: 0.6, delay: 1, pathIndex: 2 },
+    ],
+    reward: 30,
+  },
+  {
+    spawns: [
+      { enemyId: 'comet', count: 10, interval: 0.5, delay: 0, pathIndex: 0 },
+      { enemyId: 'asteroid', count: 8, interval: 0.7, delay: 1, pathIndex: 2 },
+    ],
+    reward: 30,
+  },
+  {
+    spawns: [
+      { enemyId: 'rogue_planet', count: 3, interval: 2.0, delay: 0, pathIndex: 0 },
+      { enemyId: 'asteroid', count: 10, interval: 0.6, delay: 1, pathIndex: 1 },
+      { enemyId: 'comet', count: 6, interval: 0.5, delay: 2, pathIndex: 2 },
+    ],
+    reward: 35,
+  },
+  {
+    spawns: [
+      { enemyId: 'asteroid', count: 12, interval: 0.5, delay: 0, pathIndex: 0 },
+      { enemyId: 'rogue_planet', count: 4, interval: 1.5, delay: 0, pathIndex: 1 },
+      { enemyId: 'comet', count: 8, interval: 0.4, delay: 1, pathIndex: 2 },
+    ],
+    reward: 40,
+  },
+  {
+    spawns: [
+      { enemyId: 'dark_matter', count: 4, interval: 1.2, delay: 0, pathIndex: 0 },
+      { enemyId: 'comet', count: 8, interval: 0.4, delay: 0, pathIndex: 1 },
+      { enemyId: 'rogue_planet', count: 3, interval: 1.8, delay: 2, pathIndex: 2 },
+    ],
+    reward: 45,
+  },
+  {
+    spawns: [
+      { enemyId: 'asteroid', count: 15, interval: 0.3, delay: 0, pathIndex: 0 },
+      { enemyId: 'dark_matter', count: 5, interval: 1.0, delay: 1, pathIndex: 1 },
+      { enemyId: 'quasar', count: 2, interval: 3.0, delay: 2, pathIndex: 2 },
+    ],
+    reward: 50,
+  },
+  {
+    spawns: [
+      { enemyId: 'quasar', count: 3, interval: 2.0, delay: 0, pathIndex: 0 },
+      { enemyId: 'rogue_planet', count: 5, interval: 1.2, delay: 0, pathIndex: 1 },
+      { enemyId: 'dark_matter', count: 6, interval: 0.8, delay: 1, pathIndex: 2 },
+      { enemyId: 'comet', count: 10, interval: 0.3, delay: 2, pathIndex: 0 },
+    ],
+    reward: 55,
+  },
+];

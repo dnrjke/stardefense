@@ -203,6 +203,17 @@ const DEFAULT_MAPS: Record<string, MapInfo> = {
     isBoss: true,
     description: '엔트로피가 우주를 집어삼키려 한다. 최후의 전투에서 우주를 지켜라.',
   },
+  map_heat_death: {
+    id: 'map_heat_death',
+    name: 'Heat Death',
+    nameKo: '열사의 장',
+    act: 5,
+    order: 1,
+    unlocked: false,
+    completed: false,
+    isBoss: false,
+    description: '우주의 종말을 늦춰라. 무한히 강해지는 적을 최대한 오래 버텨라.',
+  },
 };
 
 export function createCampaignStore() {

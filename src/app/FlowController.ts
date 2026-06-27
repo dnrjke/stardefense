@@ -12,8 +12,14 @@ import type { GameStore } from '@/app/store/GameStore';
 import { createCampaignStore } from '@/app/store/CampaignStore';
 import type { CampaignStore } from '@/app/store/CampaignStore';
 import { MapSelectScreen } from '@/shared/ui/MapSelectScreen';
-import { createMap1_1, createMap1_2, createMap1_3, createMap1_B, createMap2_1, createMap2_2, createMap2_3, createMap2_B, createMap3_1, createMap3_2, createMap3_3, createMap3_B, createMap4_1, createMap4_2, createMap4_3, createMap4_B } from '@/shared/data/MapData';
+import { createMap1_1, createMap1_2, createMap1_3, createMap1_B, createMap2_1, createMap2_2, createMap2_3, createMap2_B, createMap3_1, createMap3_2, createMap3_3, createMap3_B, createMap4_1, createMap4_2, createMap4_3, createMap4_B, createMapHeatDeath } from '@/shared/data/MapData';
 import { MAP_1_1_WAVES, MAP_1_2_WAVES, MAP_1_3_WAVES, MAP_1_B_WAVES, MAP_2_1_WAVES, MAP_2_2_WAVES, MAP_2_3_WAVES, MAP_2_B_WAVES, MAP_3_1_WAVES, MAP_3_2_WAVES, MAP_3_3_WAVES, MAP_3_B_WAVES, MAP_4_1_WAVES, MAP_4_2_WAVES, MAP_4_3_WAVES, MAP_4_B_WAVES } from '@/shared/data/WaveData';
+import { HEAT_DEATH_CONFIG, getHeatDeathScaling } from '@/shared/data/HeatDeathConfig';
+import { MUTATION_DEFS, pickRandomMutations, computeMutationModifiers } from '@/shared/data/MutationData';
+import { getCrisisForWave } from '@/shared/data/CrisisData';
+import { generateHeatDeathWave, generateCrisisWave, generateExtinctionBossWave } from '@/shared/data/HeatDeathWaveGenerator';
+import { loadRecord, saveRecord, isNewBest } from '@/app/store/RecordStore';
+import { MutationSelectUI } from '@/shared/ui/MutationSelectUI';
 import { MAP_ENVIRONMENTS } from '@/shared/data/MapEnvironment';
 import { SpellEngine } from '@/engines/spell/SpellEngine';
 import { TOWER_DEFS, type TowerDef } from '@/shared/data/TowerData';
@@ -40,6 +46,7 @@ interface MapConfig {
   unlockOnClear?: string;
   environment?: string;
   isSurvival?: boolean;
+  isHeatDeath?: boolean;
 }
 
 const MAP_CONFIGS: Record<string, MapConfig> = {
@@ -152,6 +159,14 @@ const MAP_CONFIGS: Record<string, MapConfig> = {
     availableTowers: ['sol', 'proxima', 'sirius', 'rigel', 'betelgeuse', 'magnetar'],
     availableNebulae: ['orion', 'horsehead', 'pleiades', 'ring', 'crab'],
     environment: 'dark_sector',
+    unlockOnClear: 'map_heat_death',
+  },
+  map_heat_death: {
+    createMap: createMapHeatDeath,
+    waves: [],
+    availableTowers: HEAT_DEATH_CONFIG.availableTowers,
+    availableNebulae: HEAT_DEATH_CONFIG.availableNebulae,
+    isHeatDeath: true,
   },
 };
 
@@ -183,6 +198,7 @@ export class FlowController {
   private fixedStep: FixedTimestep | null = null;
   private selectedTower: TowerEntity | null = null;
   private storeUnsub: (() => void) | null = null;
+  private mutationUI: MutationSelectUI | null = null;
 
   private currentMapId: string | null = null;
   private screenState: ScreenState = 'mapSelect';
@@ -283,9 +299,29 @@ export class FlowController {
     this.hud.availableNebulae = config.availableNebulae ?? [];
     this.hud.currentWaves = config.waves;
     this.hud.isSurvival = config.isSurvival ?? false;
+    this.hud.isHeatDeath = config.isHeatDeath ?? false;
     this.hud.render();
     this.radialMenu = new RadialMenu();
     this.fixedStep = new FixedTimestep();
+
+    // Heat Death mode setup
+    if (config.isHeatDeath) {
+      store.getState().setHeatDeathMode(true);
+      store.setState({ ism: HEAT_DEATH_CONFIG.startingIsm, baseHp: HEAT_DEATH_CONFIG.baseHp, maxBaseHp: HEAT_DEATH_CONFIG.baseHp });
+
+      this.mutationUI = new MutationSelectUI();
+      this.mutationUI.onSelect = (mutId) => {
+        store.getState().addMutation(mutId);
+        const mutDef = MUTATION_DEFS[mutId];
+        if (mutDef) {
+          const names = store.getState().activeMutations.map(id => MUTATION_DEFS[id]?.nameKo ?? id);
+          this.hud!.setActiveMutations(names);
+        }
+        store.getState().setPhase('build');
+        this.hud!.setCrisisWarning(null);
+        this.hud!.render();
+      };
+    }
 
     // Wire radial menu
     this.radialMenu.onSelect = (itemId) => {
@@ -362,11 +398,6 @@ export class FlowController {
 
     this.waveEngine.onWaveCleared = () => {
       const state = store.getState();
-      const waveIndex = this.getSurvivalWaveIndex(state.currentWave, config);
-      const waveDef = config.waves[waveIndex];
-      const reward = waveDef ? Math.round(waveDef.reward * ismMult) : 0;
-      if (reward > 0) state.addIsm(reward);
-      if (waveDef) this.hud!.showWaveBanner(state.currentWave, reward);
 
       for (const tower of this.towerEngine!.getTowers()) {
         tower.onWaveCompleted();
@@ -380,28 +411,72 @@ export class FlowController {
         }
       }
 
-      // Proxima unlock on map_1_1 wave 2 clear
-      if (mapId === 'map_1_1' && state.currentWave === 2) {
-        store.getState().unlockTower('proxima');
-      }
+      if (config.isHeatDeath) {
+        const reward = HEAT_DEATH_CONFIG.waveRewardBase + state.currentWave * HEAT_DEATH_CONFIG.waveRewardPerWave;
+        const modifiers = computeMutationModifiers(state.activeMutations);
+        const finalReward = Math.round(reward * modifiers.waveRewardMult);
+        state.addIsm(finalReward);
+        this.hud!.showWaveBanner(state.currentWave, finalReward);
+        this.hud!.setCrisisWarning(null);
 
-      // Survival cycle tracking
-      if (config.isSurvival && state.currentWave % config.waves.length === 0) {
-        store.getState().incrementSurvivalCycle();
-      }
+        // Mutation selection every 5 waves
+        if (state.currentWave > 0 && state.currentWave % 5 === 0) {
+          state.setPhase('result');
+          setTimeout(() => {
+            if (store.getState().phase !== 'result') return;
+            const mutations = pickRandomMutations(store.getState().activeMutations, 3);
+            if (mutations.length > 0 && this.mutationUI) {
+              this.mutationUI.show(mutations);
+            } else {
+              store.getState().setPhase('build');
+              this.hud!.render();
+            }
+          }, 1000);
+        } else {
+          state.setPhase('result');
+          setTimeout(() => {
+            if (store.getState().phase === 'result') {
+              store.getState().setPhase('build');
+              this.hud!.render();
+            }
+          }, 1500);
+        }
 
-      if (!config.isSurvival && state.currentWave >= state.totalWaves) {
-        state.setPhase('clear');
-        this.hud!.showEndScreen(true, mapId);
+        // Preview next crisis
+        const nextCrisis = getCrisisForWave(state.currentWave + 1);
+        if (nextCrisis) {
+          this.hud!.setCrisisWarning(`다음 웨이브: ${nextCrisis.nameKo}`);
+        }
       } else {
-        state.setPhase('result');
-        setTimeout(() => {
-          if (store.getState().phase === 'result') {
-            store.getState().setPhase('build');
-            this.showTutorial();
-            this.hud!.render();
-          }
-        }, 1500);
+        const waveIndex = this.getSurvivalWaveIndex(state.currentWave, config);
+        const waveDef = config.waves[waveIndex];
+        const reward = waveDef ? Math.round(waveDef.reward * ismMult) : 0;
+        if (reward > 0) state.addIsm(reward);
+        if (waveDef) this.hud!.showWaveBanner(state.currentWave, reward);
+
+        // Proxima unlock on map_1_1 wave 2 clear
+        if (mapId === 'map_1_1' && state.currentWave === 2) {
+          store.getState().unlockTower('proxima');
+        }
+
+        // Survival cycle tracking
+        if (config.isSurvival && state.currentWave % config.waves.length === 0) {
+          store.getState().incrementSurvivalCycle();
+        }
+
+        if (!config.isSurvival && state.currentWave >= state.totalWaves) {
+          state.setPhase('clear');
+          this.hud!.showEndScreen(true, mapId);
+        } else {
+          state.setPhase('result');
+          setTimeout(() => {
+            if (store.getState().phase === 'result') {
+              store.getState().setPhase('build');
+              this.showTutorial();
+              this.hud!.render();
+            }
+          }, 1500);
+        }
       }
       this.hud!.render();
     };
@@ -416,14 +491,48 @@ export class FlowController {
       this.hud!.hideTutorial();
       this.hud!.render();
 
-      const waveIndex = this.getSurvivalWaveIndex(waveIdx, config);
-      const waveDef = config.waves[waveIndex];
-      if (config.isSurvival) {
-        const cycle = store.getState().survivalCycle;
-        const scaledWave = this.scaleSurvivalWave(waveDef, cycle);
-        this.waveEngine!.startWave(scaledWave);
-      } else {
+      if (config.isHeatDeath) {
+        const state = store.getState();
+        const scaling = getHeatDeathScaling(waveIdx);
+        const modifiers = computeMutationModifiers(state.activeMutations);
+
+        // Extinction boss every 25 waves
+        if (waveIdx > 0 && waveIdx % 25 === 0) {
+          const bossIndex = Math.floor(waveIdx / 25) - 1;
+          const bossWave = generateExtinctionBossWave(bossIndex, waveIdx, scaling);
+          this.waveEngine!.startWave(bossWave);
+          return;
+        }
+
+        // Crisis every 10 waves
+        const crisis = getCrisisForWave(waveIdx);
+        if (crisis) {
+          this.hud!.setCrisisWarning(`⚠ ${crisis.nameKo}: ${crisis.description}`);
+          if (crisis.type === 'swarm' || crisis.type === 'antimatter_flood') {
+            const crisisWave = generateCrisisWave(crisis.type, waveIdx, scaling);
+            this.waveEngine!.startWave(crisisWave);
+            return;
+          }
+          if (crisis.type === 'entropy_permanent') {
+            store.getState().setEntropyPermanent();
+          }
+          if (crisis.type === 'shrink_build') {
+            store.getState().incrementBuildShrink();
+          }
+        }
+
+        const waveDef = generateHeatDeathWave(waveIdx, scaling, modifiers, state.entropyPermanent);
         this.waveEngine!.startWave(waveDef);
+      } else {
+        const waveIndex = this.getSurvivalWaveIndex(waveIdx, config);
+        const waveDef = config.waves[waveIndex];
+        if (config.isSurvival) {
+          const cycle = store.getState().survivalCycle;
+          const scaledWave = this.scaleSurvivalWave(waveDef, cycle);
+          this.waveEngine!.startWave(scaledWave);
+        } else {
+          this.waveEngine!.startWave(waveDef);
+        }
       }
     };
 
@@ -527,7 +636,19 @@ export class FlowController {
       const state = store.getState();
       this.hud!.render();
       if (state.phase === 'gameover') {
-        this.hud!.showEndScreen(false, mapId);
+        if (config.isHeatDeath) {
+          const wave = state.currentWave;
+          const kills = state.enemiesKilled;
+          const mutNames = state.activeMutations.map(id => MUTATION_DEFS[id]?.nameKo ?? id);
+          const record = loadRecord();
+          const newBest = isNewBest(wave, kills);
+          if (newBest) {
+            saveRecord({ bestWave: wave, bestKills: kills, lastMutations: state.activeMutations, bestTime: Date.now() - state.heatDeathStartTime });
+          }
+          this.hud!.showHeatDeathEndScreen(wave, kills, mutNames, record.bestWave, newBest);
+        } else {
+          this.hud!.showEndScreen(false, mapId);
+        }
       }
     });
 
@@ -743,6 +864,8 @@ export class FlowController {
     this.nebulaEngine?.dispose();
     this.hud?.dispose();
     this.radialMenu?.dispose();
+    this.mutationUI?.dispose();
+    this.mutationUI = null;
 
     // Dispose map meshes from scene
     const toDispose = this.scene.meshes.filter(m =>

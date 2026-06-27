@@ -490,3 +490,35 @@ export function createMap4_B(): MapDef {
   markPathOnGrid(buildable, waypoints);
   return { cols, rows, tileSize, waypoints, buildable, cameraDistance: 26 };
 }
+
+export function createMapHeatDeath(): MapDef {
+  const cols = 24;
+  const rows = 16;
+  const tileSize = 1;
+  const buildable = createEmptyGrid(rows, cols);
+
+  const pathA: Vec2[] = [
+    { x: 0, y: 2 }, { x: 6, y: 2 }, { x: 6, y: 6 },
+    { x: 12, y: 6 }, { x: 12, y: 8 }, { x: 23, y: 8 },
+  ];
+  const pathB: Vec2[] = [
+    { x: 0, y: 7 }, { x: 4, y: 7 }, { x: 4, y: 8 },
+    { x: 12, y: 8 }, { x: 23, y: 8 },
+  ];
+  const pathC: Vec2[] = [
+    { x: 0, y: 13 }, { x: 6, y: 13 }, { x: 6, y: 10 },
+    { x: 12, y: 10 }, { x: 12, y: 8 }, { x: 23, y: 8 },
+  ];
+
+  markPathOnGrid(buildable, pathA);
+  markPathOnGrid(buildable, pathB);
+  markPathOnGrid(buildable, pathC);
+
+  return {
+    cols, rows, tileSize,
+    waypoints: pathA,
+    paths: [pathA, pathB, pathC],
+    buildable,
+    cameraDistance: 28,
+  };
+}
