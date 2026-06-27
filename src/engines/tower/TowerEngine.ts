@@ -78,6 +78,20 @@ export class TowerEngine {
         tower.def.attackRate = (tower as any)._origBinaryRate;
         (tower as any)._binaryRateBuff = false;
       }
+      if ((tower as any)._swordRangeBuff) {
+        tower.def.range = (tower as any)._origRange;
+        (tower as any)._swordRangeBuff = false;
+      }
+      if ((tower as any)._nucleoArmorBuff) {
+        tower.def.armorDebuff = (tower as any)._origArmorDebuff;
+        (tower as any)._nucleoArmorBuff = false;
+      }
+      if ((tower as any)._magnetoRangeBuff) {
+        tower.def.range = (tower as any)._origMagRange;
+        (tower as any)._magnetoRangeBuff = false;
+      }
+      (tower as any)._orionPiercing = false;
+      (tower as any)._trinaryMultiTarget = false;
     }
 
     // Evaluate synergies
@@ -110,6 +124,54 @@ export class TowerEngine {
             t.def.attackRate = t.def.attackRate * 1.15;
             (t as any)._binaryRateBuff = true;
           }
+        }
+      }
+      // Sword of Orion: Rigel-based range+1, Betelgeuse-based explosion damage+30%
+      if (syn.id === 'sword_of_orion') {
+        for (const t of syn.affectedTowers) {
+          const base = t.evolvedFrom ?? t.def.id;
+          if (base.startsWith('rigel') && !(t as any)._swordRangeBuff) {
+            (t as any)._origRange = t.def.range;
+            t.def.range = t.def.range + 1;
+            (t as any)._swordRangeBuff = true;
+          }
+          if (base.startsWith('betelgeuse') && !(t as any)._synergyDmgBuff) {
+            (t as any)._origSynDamage = t.def.damage;
+            t.def.damage = Math.round(t.def.damage * 1.3);
+            (t as any)._synergyDmgBuff = true;
+          }
+        }
+      }
+      // Nucleosynthesis: Wolf-Rayet + Betelgeuse armor ignore (+10 armor debuff)
+      if (syn.id === 'nucleosynthesis') {
+        for (const t of syn.affectedTowers) {
+          if (!(t as any)._nucleoArmorBuff) {
+            (t as any)._origArmorDebuff = t.def.armorDebuff ?? 0;
+            t.def.armorDebuff = (t.def.armorDebuff ?? 0) + 10;
+            (t as any)._nucleoArmorBuff = true;
+          }
+        }
+      }
+      // Extreme Magnetosphere: Magnetar detection range → map-wide (range=50)
+      if (syn.id === 'extreme_magnetosphere') {
+        for (const t of syn.affectedTowers) {
+          if (!(t as any)._magnetoRangeBuff) {
+            (t as any)._origMagRange = t.def.range;
+            t.def.range = 50;
+            (t as any)._magnetoRangeBuff = true;
+          }
+        }
+      }
+      // Orion Belt: piercing shots (flag on tower, applied during projectile hit)
+      if (syn.id === 'orion_belt') {
+        for (const t of syn.affectedTowers) {
+          (t as any)._orionPiercing = true;
+        }
+      }
+      // Trinary Star: 25% chance to fire at a second target
+      if (syn.id === 'trinary_star') {
+        for (const t of syn.affectedTowers) {
+          (t as any)._trinaryMultiTarget = true;
         }
       }
     }
@@ -271,6 +333,9 @@ export class TowerEngine {
 
       const proj = tower.fixedUpdate(dt, enemies);
       if (proj) {
+        if ((tower as any)._orionPiercing && Math.random() < 0.5) {
+          proj.piercing = true;
+        }
         this.projectiles.push(proj);
         // ── Binary System: fire second projectile ──
         if (tower.def.specialType === 'binary_system' && proj.target.alive) {
@@ -284,6 +349,24 @@ export class TowerEngine {
           );
           if (tower.def.splashRadius) proj2.splashRadius = tower.def.splashRadius;
           this.projectiles.push(proj2);
+        }
+        // ── Trinary Star: 25% chance to fire at second target ──
+        if ((tower as any)._trinaryMultiTarget && Math.random() < 0.25) {
+          const rSq = tower.def.range * tower.def.range;
+          let secondTarget: EnemyEntity | null = null;
+          let minD = Infinity;
+          for (const e of enemies) {
+            if (!e.alive || e === proj.target) continue;
+            const dx = e.position.x - tower.mesh.position.x;
+            const dz = e.position.z - tower.mesh.position.z;
+            const d = dx * dx + dz * dz;
+            if (d <= rSq && d < minD) { minD = d; secondTarget = e; }
+          }
+          if (secondTarget) {
+            const p2 = new Projectile(this.scene, tower.mesh.position, secondTarget, proj.damage, proj.speed, tower.getColor());
+            if (tower.def.splashRadius) p2.splashRadius = tower.def.splashRadius;
+            this.projectiles.push(p2);
+          }
         }
       }
     }
@@ -316,6 +399,25 @@ export class TowerEngine {
 
     for (const proj of this.projectiles) {
       if (!proj.alive) continue;
+      // Piercing projectile lost its target — retarget or die
+      if (proj.piercing && !proj.target.alive) {
+        let newTarget: EnemyEntity | null = null;
+        let minD = Infinity;
+        for (const e of enemies) {
+          if (!e.alive) continue;
+          const dx = e.position.x - proj.mesh.position.x;
+          const dz = e.position.z - proj.mesh.position.z;
+          const d = dx * dx + dz * dz;
+          if (d < minD) { minD = d; newTarget = e; }
+        }
+        if (newTarget && minD < 25) {
+          proj.target = newTarget;
+        } else {
+          proj.alive = false;
+          proj.dispose();
+          continue;
+        }
+      }
       const hit = proj.fixedUpdate(dt);
       if (hit) {
         this.onEnemyHit?.(proj.target, proj.damage);

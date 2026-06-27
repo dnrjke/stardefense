@@ -422,7 +422,8 @@ export class FlowController {
       if (killed) {
         const reward = Math.round(enemy.def.reward * ismMult);
         store.getState().addIsm(reward);
-        store.getState().addSpellGauge(5);
+        const gaugeAmt = this.towerEngine!.getActiveSynergies().some(s => s.id === 'stellar_recycling') ? 6.25 : 5;
+        store.getState().addSpellGauge(gaugeAmt);
         store.getState().incrementEnemiesKilled();
         this.showFloatingIsm(reward, enemy.position);
       }

@@ -54,7 +54,9 @@ export class Projectile {
   damage: number;
   speed: number;
   splashRadius = 0;
+  piercing = false;
   alive = true;
+  private hitTargets = new Set<EnemyEntity>();
   private prevPos: BABYLON.Vector3;
   private nextPos: BABYLON.Vector3;
   private shaderMat: BABYLON.ShaderMaterial;
@@ -124,9 +126,11 @@ export class Projectile {
     if (!this.alive) return false;
 
     if (!this.target.alive) {
-      this.alive = false;
-      this.disposeAll();
-      return false;
+      if (!this.piercing) {
+        this.alive = false;
+        this.disposeAll();
+        return false;
+      }
     }
 
     this.prevPos.copyFrom(this.mesh.position);
@@ -145,9 +149,13 @@ export class Projectile {
     const step = this.speed * dt;
 
     if (dist <= step + this.target.def.radius) {
+      if (this.piercing) {
+        this.hitTargets.add(this.target);
+        return true;
+      }
       this.alive = false;
       this.disposeAll();
-      return true; // hit
+      return true;
     }
 
     dir.normalize();
