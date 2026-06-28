@@ -674,9 +674,31 @@ export class FlowController {
     };
 
     // Store subscription for HUD updates
+    let lastChromeKey = '';
     this.storeUnsub = store.subscribe(() => {
       const state = store.getState();
-      this.hud!.render();
+      const chromeKey = [
+        state.phase,
+        state.ism,
+        state.baseHp,
+        state.maxBaseHp,
+        state.currentWave,
+        state.speed,
+        state.spellGauge,
+        JSON.stringify(state.spellCooldowns),
+        state.survivalCycle,
+      ].join('|');
+
+      if (state.phase === 'wave') {
+        if (chromeKey !== lastChromeKey) {
+          lastChromeKey = chromeKey;
+          this.hud!.updateChrome();
+        }
+      } else {
+        lastChromeKey = chromeKey;
+        this.hud!.render();
+      }
+
       if (state.phase === 'gameover') {
         if (config.isHeatDeath) {
           const wave = state.currentWave;
@@ -1084,10 +1106,12 @@ export class FlowController {
       }
     });
 
-    // Update HUD synergy display from fixedUpdate results (wave phase only)
+    // Update HUD synergy display (once per render frame, not per tick)
     if (phase === 'wave') {
       const waveSynergies = this.towerEngine.getActiveSynergies();
+      this.hud!.activeSynergyNames = waveSynergies.map(s => s.nameKo);
       this.hud!.activeSynergyData = waveSynergies.map(s => ({ id: s.id, nameKo: s.nameKo, description: s.description }));
+      this.hud!.updateChrome();
     }
 
     if (phase === 'wave') {

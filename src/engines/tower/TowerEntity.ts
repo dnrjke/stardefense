@@ -124,6 +124,13 @@ if (!BABYLON.Effect.ShadersStore['towerStarVertexShader']) {
 /** Global tower seed counter for visual variety */
 let _towerSeedCounter = 0;
 
+export interface TowerBaseStats {
+  attackRate: number;
+  damage: number;
+  range: number;
+  armorDebuff: number;
+}
+
 export class TowerEntity {
   def: TowerDef;
   readonly row: number;
@@ -133,6 +140,7 @@ export class TowerEntity {
   evolvedFrom?: string;
   wavesAlive = 0;
   readyToExplode = false;
+  baseStats: TowerBaseStats;
 
   private scene: BABYLON.Scene;
   private attackCooldown = 0;
@@ -149,6 +157,12 @@ export class TowerEntity {
   constructor(scene: BABYLON.Scene, def: TowerDef, worldPos: BABYLON.Vector3, row: number, col: number) {
     this.scene = scene;
     this.def = { ...def };
+    this.baseStats = {
+      attackRate: def.attackRate,
+      damage: def.damage,
+      range: def.range,
+      armorDebuff: def.armorDebuff ?? 0,
+    };
     this.row = row;
     this.col = col;
     this.rangeSq = def.range * def.range;
@@ -221,9 +235,27 @@ export class TowerEntity {
     }
   }
 
+  resetCombatStats() {
+    this.def.attackRate = this.baseStats.attackRate;
+    this.def.damage = this.baseStats.damage;
+    this.def.range = this.baseStats.range;
+    this.def.armorDebuff = this.baseStats.armorDebuff;
+    this.syncRangeSq();
+  }
+
+  syncRangeSq() {
+    this.rangeSq = this.def.range * this.def.range;
+  }
+
   evolve(newDef: TowerDef, newLevel: number) {
     this.evolvedFrom = this.def.id;
     this.def = { ...newDef };
+    this.baseStats = {
+      attackRate: newDef.attackRate,
+      damage: newDef.damage,
+      range: newDef.range,
+      armorDebuff: newDef.armorDebuff ?? 0,
+    };
     this.level = newLevel;
     this.rangeSq = newDef.range * newDef.range;
 
@@ -268,22 +300,7 @@ export class TowerEntity {
     this.pulsarTimer = 0;
     this.attackCooldown = 0;
 
-    // Clear synergy/aura shadow properties to prevent stale originals
     const self = this as any;
-    delete self._origAttackRate;
-    delete self._origDamage;
-    delete self._origSynDamage;
-    delete self._origBinaryRate;
-    delete self._origRange;
-    delete self._origArmorDebuff;
-    delete self._origMagRange;
-    self._auraBuffed = false;
-    self._synergyRateBuff = false;
-    self._synergyDmgBuff = false;
-    self._binaryRateBuff = false;
-    self._swordRangeBuff = false;
-    self._nucleoArmorBuff = false;
-    self._magnetoRangeBuff = false;
     self._orionPiercing = false;
     self._trinaryMultiTarget = false;
   }

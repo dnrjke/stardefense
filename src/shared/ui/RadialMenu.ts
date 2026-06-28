@@ -1,4 +1,5 @@
 import * as BABYLON from '@babylonjs/core';
+import { getTopBarHeight } from '@/shared/ui/HUD';
 
 export interface RadialMenuItem {
   id: string;
@@ -53,7 +54,8 @@ export class RadialMenu {
 
     // Backdrop (click/tap to close)
     const backdrop = document.createElement('div');
-    backdrop.style.cssText = `position:absolute;top:${mob ? 36 : 40}px;left:0;width:100%;height:calc(100% - ${mob ? 36 : 40}px);pointer-events:auto;`;
+    const topBarH = getTopBarHeight();
+    backdrop.style.cssText = `position:absolute;top:${topBarH}px;left:0;width:100%;height:calc(100% - ${topBarH}px);pointer-events:auto;`;
     backdrop.onclick = (e) => {
       e.stopPropagation();
       if (Date.now() - this.showTime < 250) return;

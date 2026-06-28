@@ -21,6 +21,11 @@ function safeInset(side: string, fallback = '0px'): string {
   return `env(safe-area-inset-${side}, ${fallback})`;
 }
 
+/** Top bar height — keep in sync with RadialMenu backdrop offset */
+export function getTopBarHeight(): number {
+  return isMobileLandscape() ? 36 : 40;
+}
+
 export class HUD {
   private container: HTMLDivElement;
   private topBar: HTMLDivElement;
@@ -52,6 +57,12 @@ export class HUD {
   crisisWarning: string | null = null;
   private selectedSynergyId: string | null = null;
   private synergyTooltip!: HTMLDivElement;
+  private backBtn!: HTMLButtonElement;
+  private speedBtn!: HTMLButtonElement;
+  private infoEl!: HTMLSpanElement;
+  private topBarCenter!: HTMLDivElement;
+  private _lastSynergyKey = '';
+  private _lastBottomKey = '';
   onTowerSelected: ((towerId: string | null) => void) | null = null;
   onNebulaSelected: ((nebulaId: string | null) => void) | null = null;
   onStartWave: (() => void) | null = null;
@@ -70,10 +81,35 @@ export class HUD {
     this.container.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;font-family:monospace;color:#fff;';
     document.body.appendChild(this.container);
 
-    // Top bar — compact on mobile
+    // Wave preview — inline in top bar center
+    this.wavePreview = document.createElement('span');
+    this.wavePreview.style.cssText = `font-size:${mob ? 10 : 11}px;color:#8af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${mob ? '30vw' : '300px'};display:none;`;
+
+    // Top bar — persistent chrome (back/speed never recreated during render)
+    const topH = getTopBarHeight();
     this.topBar = document.createElement('div');
-    this.topBar.style.cssText = `position:absolute;top:0;left:0;right:0;height:${mob ? 36 : 40}px;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:space-between;padding:0 ${mob ? '8px' : '16px'};padding-left:calc(${mob ? '8px' : '16px'} + ${safeInset('left')});padding-right:calc(${mob ? '8px' : '16px'} + ${safeInset('right')});pointer-events:auto;font-size:${mob ? 12 : 14}px;`;
+    this.topBar.style.cssText = `position:absolute;top:0;left:0;right:0;height:${topH}px;background:rgba(0,0,0,0.7);display:flex;align-items:center;gap:${mob ? 4 : 8}px;padding:0 ${mob ? '8px' : '16px'};padding-left:calc(${mob ? '8px' : '16px'} + ${safeInset('left')});padding-right:calc(${mob ? '8px' : '16px'} + ${safeInset('right')});pointer-events:auto;font-size:${mob ? 12 : 14}px;z-index:15;`;
     this.container.appendChild(this.topBar);
+
+    this.backBtn = document.createElement('button');
+    this.backBtn.textContent = 'BACK';
+    this.backBtn.style.cssText = `background:#322;color:#a88;border:1px solid #544;padding:${mob ? '6px 12px' : '4px 10px'};cursor:pointer;font-family:monospace;font-size:${mob ? 11 : 12}px;border-radius:4px;flex-shrink:0;min-height:${mob ? '32px' : 'auto'};`;
+    this.backBtn.onclick = () => this.onBack?.();
+    this.topBar.appendChild(this.backBtn);
+
+    this.infoEl = document.createElement('span');
+    this.infoEl.style.cssText = mob ? 'font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;' : 'flex-shrink:0;';
+    this.topBar.appendChild(this.infoEl);
+
+    this.topBarCenter = document.createElement('div');
+    this.topBarCenter.style.cssText = `display:flex;align-items:center;gap:4px;flex:1;min-width:0;overflow:hidden;margin-left:${mob ? 4 : 8}px;`;
+    this.topBar.appendChild(this.topBarCenter);
+    this.topBarCenter.appendChild(this.wavePreview);
+
+    this.speedBtn = document.createElement('button');
+    this.speedBtn.style.cssText = `background:#333;color:#aaa;border:1px solid #555;padding:${mob ? '6px 14px' : '4px 12px'};cursor:pointer;font-family:monospace;font-size:${mob ? 12 : 13}px;font-weight:bold;border-radius:4px;min-height:${mob ? '32px' : 'auto'};flex-shrink:0;`;
+    this.speedBtn.onclick = () => this.onCycleSpeed?.();
+    this.topBar.appendChild(this.speedBtn);
 
     // Bottom bar — taller touch targets on mobile
     this.bottomBar = document.createElement('div');
@@ -115,10 +151,6 @@ export class HUD {
     this.synergyTooltip.onclick = () => { this.selectedSynergyId = null; this.synergyTooltip.style.display = 'none'; };
     document.body.appendChild(this.synergyTooltip);
 
-    // Wave preview — inline in top bar (no separate overlay)
-    this.wavePreview = document.createElement('span');
-    this.wavePreview.style.cssText = `font-size:${mob ? 10 : 11}px;color:#8af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${mob ? '30vw' : '300px'};display:none;margin-left:${mob ? 4 : 8}px;`;
-
     // Start wave button — fixed bottom-right, above footer
     this.startWaveBtn = document.createElement('button');
     this.startWaveBtn.style.cssText = `position:absolute;right:calc(${mob ? '8px' : '16px'} + ${safeInset('right')});bottom:calc(${mob ? '64px' : '76px'} + ${safeInset('bottom')});background:#224;color:#aaf;border:2px solid #558;padding:${mob ? '10px 16px' : '10px 20px'};cursor:pointer;font-family:monospace;font-size:${mob ? 13 : 14}px;font-weight:bold;border-radius:8px;pointer-events:auto;display:none;z-index:12;text-shadow:0 0 8px rgba(100,120,255,0.4);`;
@@ -129,8 +161,8 @@ export class HUD {
     this.spellPanel = document.createElement('div');
     this.spellPanel.className = 'spell-panel';
     const spellRight = mob ? `calc(8px + ${safeInset('right')})` : '12px';
-    const spellTop = mob ? '38px' : '50px';
-    this.spellPanel.style.cssText = `position:absolute;right:${spellRight};top:${spellTop};display:flex;flex-direction:column;gap:${mob ? '4px' : '6px'};pointer-events:auto;`;
+    const spellTop = `${topH + 8}px`;
+    this.spellPanel.style.cssText = `position:absolute;right:${spellRight};top:${spellTop};display:flex;flex-direction:column;gap:${mob ? '4px' : '6px'};pointer-events:auto;z-index:12;`;
 
     const gaugeW = mob ? 72 : 100;
     const gaugeBar = document.createElement('div');
@@ -184,9 +216,10 @@ export class HUD {
   render() {
     const state = this.store.getState();
     const mob = isMobileLandscape();
+    const topH = getTopBarHeight();
 
     // Update layout dimensions on render (handles orientation change)
-    this.topBar.style.height = mob ? '36px' : '40px';
+    this.topBar.style.height = `${topH}px`;
     this.topBar.style.fontSize = mob ? '12px' : '14px';
     this.bottomBar.style.gap = mob ? '4px' : '8px';
     this.bottomBar.style.padding = `${mob ? '6px' : '8px'} ${mob ? '6px' : '16px'}`;
@@ -196,41 +229,52 @@ export class HUD {
     this.startWaveBtn.style.right = `calc(${mob ? '8px' : '16px'} + ${safeInset('right')})`;
     this.startWaveBtn.style.bottom = `calc(${mob ? '64px' : '76px'} + ${safeInset('bottom')})`;
     this.spellPanel.style.right = mob ? `calc(8px + ${safeInset('right')})` : '12px';
-    this.spellPanel.style.top = mob ? '38px' : '50px';
+    this.spellPanel.style.top = `${topH + 8}px`;
     this.mutationPanel.style.right = mob ? `calc(8px + ${safeInset('right')})` : '12px';
     this.mutationPanel.style.top = mob ? '140px' : '200px';
     this.infoPanel.style.maxHeight = `calc(100dvh - 50px - ${mob ? 58 : 72}px - 16px)`;
 
-    // --- Top bar ---
-    this.topBar.innerHTML = '';
+    this.updateTopBar(state, mob);
+    this.updateSpellPanel(state);
+    this.updateInfoPanel(mob);
+    this.renderBottomBar(state, mob);
+    this.updateMutationPanel(mob);
+    this.updateCrisisBanner();
+  }
 
-    const backBtn = document.createElement('button');
-    backBtn.textContent = 'BACK';
-    backBtn.style.cssText = `background:#322;color:#a88;border:1px solid #544;padding:${mob ? '6px 12px' : '4px 10px'};cursor:pointer;font-family:monospace;font-size:${mob ? 11 : 12}px;border-radius:4px;margin-right:${mob ? 6 : 12}px;min-height:${mob ? '32px' : 'auto'};`;
-    backBtn.onclick = () => this.onBack?.();
-    this.topBar.appendChild(backBtn);
+  /** Lightweight HUD refresh during wave — skips bottom palette rebuild */
+  updateChrome() {
+    const state = this.store.getState();
+    const mob = isMobileLandscape();
+    this.updateTopBar(state, mob);
+    this.updateSpellPanel(state);
+    this.updateStartWaveBtn(state, mob);
+  }
 
-    const info = document.createElement('span');
-    info.style.cssText = mob ? 'font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' : '';
+  private updateTopBar(state: ReturnType<GameStore['getState']>, mob: boolean) {
     if (this.isHeatDeath) {
       if (mob) {
-        info.innerHTML = `W${state.currentWave} ISM:${state.ism} HP:${state.baseHp}`;
+        this.infoEl.innerHTML = `W${state.currentWave} ISM:${state.ism} HP:${state.baseHp}`;
       } else {
-        info.innerHTML = `WAVE ${state.currentWave} &nbsp; ISM: ${state.ism} &nbsp; BASE HP: ${state.baseHp}`;
+        this.infoEl.innerHTML = `WAVE ${state.currentWave} &nbsp; ISM: ${state.ism} &nbsp; BASE HP: ${state.baseHp}`;
       }
     } else {
       const waveDisplay = this.isSurvival
         ? `WAVE ${state.currentWave} (Cycle ${state.survivalCycle + 1})`
         : `WAVE ${state.currentWave}/${state.totalWaves}`;
       if (mob) {
-        info.innerHTML = `W${state.currentWave}${this.isSurvival ? '' : '/' + state.totalWaves} ISM:${state.ism} HP:${state.baseHp}`;
+        this.infoEl.innerHTML = `W${state.currentWave}${this.isSurvival ? '' : '/' + state.totalWaves} ISM:${state.ism} HP:${state.baseHp}`;
       } else {
-        info.innerHTML = `${waveDisplay} &nbsp; ISM: ${state.ism} &nbsp; BASE HP: ${state.baseHp}/${state.maxBaseHp}`;
+        this.infoEl.innerHTML = `${waveDisplay} &nbsp; ISM: ${state.ism} &nbsp; BASE HP: ${state.baseHp}/${state.maxBaseHp}`;
       }
     }
-    this.topBar.appendChild(info);
 
-    // Wave preview inline in topBar (between info and speed)
+    this.speedBtn.textContent = `x${state.speed}`;
+    this.speedBtn.style.background = state.speed > 1 ? '#553' : '#333';
+    this.speedBtn.style.color = state.speed > 1 ? '#ff4' : '#aaa';
+    this.speedBtn.style.borderColor = state.speed > 1 ? '#885' : '#555';
+
+    // Wave preview (build phase only)
     if (state.phase === 'build' && this.currentWaves.length > 0) {
       const nextIdx = this.isSurvival
         ? state.currentWave % this.currentWaves.length
@@ -245,78 +289,94 @@ export class HUD {
         }
         this.wavePreview.textContent = parts.join(' ');
         this.wavePreview.style.display = 'inline';
-        this.topBar.appendChild(this.wavePreview);
+      } else {
+        this.wavePreview.style.display = 'none';
       }
+    } else {
+      this.wavePreview.style.display = 'none';
     }
 
-    // Active synergy badges
+    this.updateSynergyBadges(mob);
+    this.updateStartWaveBtn(state, mob);
+  }
+
+  private updateSynergyBadges(mob: boolean) {
     const synergySource = this.activeSynergyData.length > 0 ? this.activeSynergyData : null;
-    if (synergySource && synergySource.length > 0) {
-      const synergyBar = document.createElement('div');
-      synergyBar.style.cssText = `display:flex;gap:4px;align-items:center;margin-left:${mob ? 4 : 8}px;flex-shrink:1;overflow:hidden;`;
-      for (const syn of synergySource) {
-        const isNew = syn.isNew ?? false;
-        const selected = this.selectedSynergyId === syn.id;
-        const badge = document.createElement('span');
-        badge.textContent = isNew ? `★${syn.nameKo}` : syn.nameKo;
-        const bg = selected ? 'rgba(140,120,255,0.7)' : isNew ? 'rgba(60,200,120,0.5)' : 'rgba(100,80,200,0.4)';
-        const fg = selected ? '#fff' : isNew ? '#8f6' : '#c8b4ff';
-        const border = selected ? '#aaf' : isNew ? '#4a4' : '#8866cc';
-        badge.style.cssText = `font-size:${mob ? 8 : 9}px;background:${bg};color:${fg};border:1px solid ${border};border-radius:3px;padding:1px 4px;white-space:nowrap;cursor:pointer;`;
-        badge.onclick = (e) => {
-          e.stopPropagation();
-          if (this.selectedSynergyId === syn.id) {
-            this.selectedSynergyId = null;
-            this.synergyTooltip.style.display = 'none';
-          } else {
-            this.selectedSynergyId = syn.id;
-            this.synergyTooltip.innerHTML = `<div style="color:${isNew ? '#8f6' : '#c8b4ff'};font-weight:bold;margin-bottom:4px;">${syn.nameKo}</div><div style="color:#aab;">${syn.description}</div>`;
-            this.synergyTooltip.style.display = 'block';
-          }
-          this.render();
-        };
-        synergyBar.appendChild(badge);
+    const synergyKey = synergySource
+      ? `${this.selectedSynergyId ?? ''}|${synergySource.map(s => `${s.id}:${s.isNew ? 1 : 0}`).join(',')}`
+      : '';
+
+    if (synergyKey !== this._lastSynergyKey) {
+      this._lastSynergyKey = synergyKey;
+      // Keep wavePreview, remove only synergy badges
+      while (this.topBarCenter.childElementCount > 1) {
+        this.topBarCenter.lastElementChild?.remove();
       }
-      this.topBar.appendChild(synergyBar);
-    } else {
-      if (this.selectedSynergyId) {
+
+      if (synergySource && synergySource.length > 0) {
+        for (const syn of synergySource) {
+          const isNew = syn.isNew ?? false;
+          const selected = this.selectedSynergyId === syn.id;
+          const badge = document.createElement('span');
+          badge.textContent = isNew ? `★${syn.nameKo}` : syn.nameKo;
+          const bg = selected ? 'rgba(140,120,255,0.7)' : isNew ? 'rgba(60,200,120,0.5)' : 'rgba(100,80,200,0.4)';
+          const fg = selected ? '#fff' : isNew ? '#8f6' : '#c8b4ff';
+          const border = selected ? '#aaf' : isNew ? '#4a4' : '#8866cc';
+          badge.style.cssText = `font-size:${mob ? 8 : 9}px;background:${bg};color:${fg};border:1px solid ${border};border-radius:3px;padding:1px 4px;white-space:nowrap;cursor:pointer;flex-shrink:0;`;
+          badge.onclick = (e) => {
+            e.stopPropagation();
+            if (this.selectedSynergyId === syn.id) {
+              this.selectedSynergyId = null;
+              this.synergyTooltip.style.display = 'none';
+            } else {
+              this.selectedSynergyId = syn.id;
+              this.synergyTooltip.innerHTML = `<div style="color:${isNew ? '#8f6' : '#c8b4ff'};font-weight:bold;margin-bottom:4px;">${syn.nameKo}</div><div style="color:#aab;">${syn.description}</div>`;
+              this.synergyTooltip.style.display = 'block';
+            }
+            this._lastSynergyKey = '';
+            this.updateSynergyBadges(mob);
+          };
+          this.topBarCenter.appendChild(badge);
+        }
+      } else if (this.selectedSynergyId) {
         this.selectedSynergyId = null;
         this.synergyTooltip.style.display = 'none';
       }
     }
-    // Hide tooltip if selected synergy no longer active
+
     if (this.selectedSynergyId && synergySource && !synergySource.some(s => s.id === this.selectedSynergyId)) {
       this.selectedSynergyId = null;
       this.synergyTooltip.style.display = 'none';
+      this._lastSynergyKey = '';
+      this.updateSynergyBadges(mob);
     }
+  }
 
-    const speedBtn = document.createElement('button');
-    speedBtn.textContent = `x${state.speed}`;
-    speedBtn.style.cssText = `background:${state.speed > 1 ? '#553' : '#333'};color:${state.speed > 1 ? '#ff4' : '#aaa'};border:1px solid ${state.speed > 1 ? '#885' : '#555'};padding:${mob ? '6px 14px' : '4px 12px'};cursor:pointer;font-family:monospace;font-size:${mob ? 12 : 13}px;font-weight:bold;border-radius:4px;min-height:${mob ? '32px' : 'auto'};flex-shrink:0;`;
-    speedBtn.onclick = () => this.onCycleSpeed?.();
-    this.topBar.appendChild(speedBtn);
-
-    // Update spell panel in-place (no DOM recreation)
-    this.updateSpellPanel(state);
-
-    // Update left info panel
-    this.updateInfoPanel(mob);
-
-    // --- Bottom bar ---
-    this.bottomBar.innerHTML = '';
-
-    const palettePad = mob ? '8px 8px' : '6px 12px';
-    const paletteFontSize = mob ? 11 : 12;
-    const paletteMinH = mob ? 'min-height:44px;' : '';
-
-    // Start wave button — independent, bottom-right above footer
+  private updateStartWaveBtn(state: ReturnType<GameStore['getState']>, mob: boolean) {
     if (state.phase === 'build') {
       this.startWaveBtn.textContent = mob ? `WAVE ${state.currentWave + 1} ▶` : `START WAVE ${state.currentWave + 1}`;
       this.startWaveBtn.style.display = 'block';
     } else {
       this.startWaveBtn.style.display = 'none';
-      this.wavePreview.style.display = 'none';
     }
+  }
+
+  private renderBottomBar(state: ReturnType<GameStore['getState']>, mob: boolean) {
+    const bottomKey = [
+      state.phase,
+      state.availableTowers.join(','),
+      this.availableNebulae.join(','),
+      this.selectedTowerId ?? '',
+      this.selectedNebulaId ?? '',
+    ].join('|');
+    if (bottomKey === this._lastBottomKey) return;
+    this._lastBottomKey = bottomKey;
+
+    this.bottomBar.innerHTML = '';
+
+    const palettePad = mob ? '8px 8px' : '6px 12px';
+    const paletteFontSize = mob ? 11 : 12;
+    const paletteMinH = mob ? 'min-height:44px;' : '';
 
     // Tower palette
     for (const tid of state.availableTowers) {
@@ -334,10 +394,6 @@ export class HUD {
       };
       this.bottomBar.appendChild(btn);
     }
-
-    // Heat death: mutation display + crisis banner
-    this.updateMutationPanel(mob);
-    this.updateCrisisBanner();
 
     // Nebula separator (only if nebulae available)
     if (this.availableNebulae.length > 0) {

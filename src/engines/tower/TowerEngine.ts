@@ -60,34 +60,7 @@ export class TowerEngine {
 
   resetBuffs() {
     for (const tower of this.towers) {
-      if ((tower as any)._auraBuffed) {
-        tower.def.damage = (tower as any)._origDamage;
-        (tower as any)._auraBuffed = false;
-      }
-      if ((tower as any)._synergyRateBuff) {
-        tower.def.attackRate = (tower as any)._origAttackRate;
-        (tower as any)._synergyRateBuff = false;
-      }
-      if ((tower as any)._synergyDmgBuff) {
-        tower.def.damage = (tower as any)._origSynDamage;
-        (tower as any)._synergyDmgBuff = false;
-      }
-      if ((tower as any)._binaryRateBuff) {
-        tower.def.attackRate = (tower as any)._origBinaryRate;
-        (tower as any)._binaryRateBuff = false;
-      }
-      if ((tower as any)._swordRangeBuff) {
-        tower.def.range = (tower as any)._origRange;
-        (tower as any)._swordRangeBuff = false;
-      }
-      if ((tower as any)._nucleoArmorBuff) {
-        tower.def.armorDebuff = (tower as any)._origArmorDebuff;
-        (tower as any)._nucleoArmorBuff = false;
-      }
-      if ((tower as any)._magnetoRangeBuff) {
-        tower.def.range = (tower as any)._origMagRange;
-        (tower as any)._magnetoRangeBuff = false;
-      }
+      tower.resetCombatStats();
       (tower as any)._orionPiercing = false;
       (tower as any)._trinaryMultiTarget = false;
     }
@@ -105,69 +78,47 @@ export class TowerEngine {
       this._synergyDirty = false;
     }
 
-    // Apply synergy buffs
+    // Apply synergy buffs (always from base stats — avoids per-frame compounding)
     for (const syn of this.activeSynergies) {
       if (syn.id === 'winter_triangle') {
         for (const t of syn.affectedTowers) {
-          if (!(t as any)._synergyRateBuff) {
-            (t as any)._origAttackRate = t.def.attackRate;
-            t.def.attackRate = t.def.attackRate * 1.2;
-            (t as any)._synergyRateBuff = true;
-          }
+          t.def.attackRate *= 1.2;
         }
       }
       if (syn.id === 'main_sequence') {
         for (const t of syn.affectedTowers) {
-          if (!(t as any)._synergyDmgBuff) {
-            (t as any)._origSynDamage = t.def.damage;
-            t.def.damage = Math.round(t.def.damage * 1.1);
-            (t as any)._synergyDmgBuff = true;
-          }
+          t.def.damage = Math.round(t.def.damage * 1.1);
         }
       }
       if (syn.id === 'binary_star') {
         for (const t of syn.affectedTowers) {
-          if (!(t as any)._binaryRateBuff) {
-            (t as any)._origBinaryRate = t.def.attackRate;
-            t.def.attackRate = t.def.attackRate * 1.15;
-            (t as any)._binaryRateBuff = true;
-          }
+          t.def.attackRate *= 1.15;
         }
       }
       // Sword of Orion: Rigel-based range+1, Betelgeuse-based explosion damage+30%
       if (syn.id === 'sword_of_orion') {
         for (const t of syn.affectedTowers) {
           const base = t.evolvedFrom ?? t.def.id;
-          if (base.startsWith('rigel') && !(t as any)._swordRangeBuff) {
-            (t as any)._origRange = t.def.range;
-            t.def.range = t.def.range + 1;
-            (t as any)._swordRangeBuff = true;
+          if (base.startsWith('rigel')) {
+            t.def.range += 1;
+            t.syncRangeSq();
           }
-          if (base.startsWith('betelgeuse') && !(t as any)._synergyDmgBuff) {
-            (t as any)._origSynDamage = t.def.damage;
+          if (base.startsWith('betelgeuse')) {
             t.def.damage = Math.round(t.def.damage * 1.3);
-            (t as any)._synergyDmgBuff = true;
           }
         }
       }
       // Nucleosynthesis: Wolf-Rayet + Betelgeuse armor ignore (+10 armor debuff)
       if (syn.id === 'nucleosynthesis') {
         for (const t of syn.affectedTowers) {
-          if (!(t as any)._nucleoArmorBuff) {
-            (t as any)._origArmorDebuff = t.def.armorDebuff ?? 0;
-            t.def.armorDebuff = (t.def.armorDebuff ?? 0) + 10;
-            (t as any)._nucleoArmorBuff = true;
-          }
+          t.def.armorDebuff = (t.def.armorDebuff ?? 0) + 10;
         }
       }
       // Extreme Magnetosphere: Magnetar detection range → map-wide (range=50)
       if (syn.id === 'extreme_magnetosphere') {
         for (const t of syn.affectedTowers) {
-          if (!(t as any)._magnetoRangeBuff) {
-            (t as any)._origMagRange = t.def.range;
-            t.def.range = 50;
-            (t as any)._magnetoRangeBuff = true;
-          }
+          t.def.range = 50;
+          t.syncRangeSq();
         }
       }
       // Orion Belt: piercing shots (flag on tower, applied during projectile hit)
@@ -185,6 +136,7 @@ export class TowerEngine {
     }
 
     const towersToRemove: TowerEntity[] = [];
+    const auraBuffed = new Set<TowerEntity>();
 
     for (const tower of this.towers) {
       if (!tower.isDisabled()) {
@@ -329,12 +281,9 @@ export class TowerEngine {
           if (other === tower) continue;
           const dx = other.mesh.position.x - tower.mesh.position.x;
           const dz = other.mesh.position.z - tower.mesh.position.z;
-          if (dx * dx + dz * dz <= buffRangeSq) {
-            if (!(other as any)._auraBuffed) {
-              (other as any)._origDamage = other.def.damage;
-              other.def.damage = Math.round(other.def.damage * 1.15);
-              (other as any)._auraBuffed = true;
-            }
+          if (dx * dx + dz * dz <= buffRangeSq && !auraBuffed.has(other)) {
+            other.def.damage = Math.round(other.def.damage * 1.15);
+            auraBuffed.add(other);
           }
         }
       }
