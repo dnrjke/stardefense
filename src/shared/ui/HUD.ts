@@ -77,7 +77,7 @@ export class HUD {
 
     // Bottom bar — taller touch targets on mobile
     this.bottomBar = document.createElement('div');
-    this.bottomBar.style.cssText = `position:absolute;bottom:0;left:0;right:0;height:${mob ? 56 : 64}px;background:rgba(0,0,0,0.7);display:flex;align-items:center;gap:${mob ? '4px' : '8px'};padding:0 ${mob ? '6px' : '16px'};padding-left:calc(${mob ? '6px' : '16px'} + ${safeInset('left')});padding-right:calc(${mob ? '6px' : '16px'} + ${safeInset('right')});padding-bottom:${safeInset('bottom')};pointer-events:auto;overflow-x:auto;-webkit-overflow-scrolling:touch;`;
+    this.bottomBar.style.cssText = `position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;gap:${mob ? '4px' : '8px'};padding:${mob ? '6px' : '8px'} ${mob ? '6px' : '16px'};padding-left:calc(${mob ? '6px' : '16px'} + ${safeInset('left')});padding-right:calc(${mob ? '6px' : '16px'} + ${safeInset('right')});padding-bottom:calc(${mob ? '6px' : '8px'} + ${safeInset('bottom')});pointer-events:auto;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none;`;
     this.container.appendChild(this.bottomBar);
 
     // Tutorial overlay
@@ -97,7 +97,7 @@ export class HUD {
 
     // Left info panel — shows tower/nebula details when selected
     this.infoPanel = document.createElement('div');
-    this.infoPanel.style.cssText = `position:absolute;left:calc(8px + ${safeInset('left')});top:50px;width:${mob ? 140 : 180}px;background:rgba(0,0,10,0.85);border:1px solid #446;border-radius:8px;padding:12px;pointer-events:auto;display:none;font-size:${mob ? 10 : 11}px;line-height:1.5;color:#ccd;max-height:calc(100vh - 50px - ${mob ? 56 : 64}px - 16px);overflow-y:auto;touch-action:pan-y;scrollbar-width:none;-ms-overflow-style:none;`;
+    this.infoPanel.style.cssText = `position:absolute;left:calc(8px + ${safeInset('left')});top:50px;width:${mob ? 140 : 180}px;background:rgba(0,0,10,0.85);border:1px solid #446;border-radius:8px;padding:12px;pointer-events:auto;display:none;font-size:${mob ? 10 : 11}px;line-height:1.5;color:#ccd;max-height:calc(100dvh - 50px - ${mob ? 58 : 72}px - 16px);overflow-y:auto;touch-action:pan-y;scrollbar-width:none;-ms-overflow-style:none;`;
     this.container.appendChild(this.infoPanel);
 
     if (!document.getElementById('hideScrollbarStyle')) {
@@ -107,6 +107,7 @@ export class HUD {
       document.head.appendChild(style);
     }
     this.infoPanel.classList.add('hide-scrollbar');
+    this.bottomBar.classList.add('hide-scrollbar');
 
     // Synergy tooltip — toggled by clicking a badge
     this.synergyTooltip = document.createElement('div');
@@ -187,16 +188,18 @@ export class HUD {
     // Update layout dimensions on render (handles orientation change)
     this.topBar.style.height = mob ? '36px' : '40px';
     this.topBar.style.fontSize = mob ? '12px' : '14px';
-    this.bottomBar.style.height = mob ? '56px' : '64px';
     this.bottomBar.style.gap = mob ? '4px' : '8px';
-    this.bottomBar.style.paddingBottom = safeInset('bottom');
+    this.bottomBar.style.padding = `${mob ? '6px' : '8px'} ${mob ? '6px' : '16px'}`;
+    this.bottomBar.style.paddingLeft = `calc(${mob ? '6px' : '16px'} + ${safeInset('left')})`;
+    this.bottomBar.style.paddingRight = `calc(${mob ? '6px' : '16px'} + ${safeInset('right')})`;
+    this.bottomBar.style.paddingBottom = `calc(${mob ? '6px' : '8px'} + ${safeInset('bottom')})`;
     this.startWaveBtn.style.right = `calc(${mob ? '8px' : '16px'} + ${safeInset('right')})`;
     this.startWaveBtn.style.bottom = `calc(${mob ? '64px' : '76px'} + ${safeInset('bottom')})`;
     this.spellPanel.style.right = mob ? `calc(8px + ${safeInset('right')})` : '12px';
     this.spellPanel.style.top = mob ? '38px' : '50px';
     this.mutationPanel.style.right = mob ? `calc(8px + ${safeInset('right')})` : '12px';
     this.mutationPanel.style.top = mob ? '140px' : '200px';
-    this.infoPanel.style.maxHeight = `calc(100vh - 50px - ${mob ? 56 : 64}px - 16px)`;
+    this.infoPanel.style.maxHeight = `calc(100dvh - 50px - ${mob ? 58 : 72}px - 16px)`;
 
     // --- Top bar ---
     this.topBar.innerHTML = '';

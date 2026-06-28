@@ -438,6 +438,7 @@ export class FlowController {
 
     this.waveEngine.onWaveCleared = () => {
       const state = store.getState();
+      this.towerEngine!.clearProjectiles();
 
       for (const tower of this.towerEngine!.getTowers()) {
         tower.onWaveCompleted();
@@ -990,10 +991,11 @@ export class FlowController {
   }
 
   private setupGlow() {
+    const mob = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     this.glowLayer = new BABYLON.GlowLayer('glowLayer', this.scene, {
-      blurKernelSize: 32,
+      blurKernelSize: mob ? 16 : 32,
     });
-    this.glowLayer.intensity = 0.5;
+    this.glowLayer.intensity = mob ? 0.35 : 0.5;
   }
 
   private setupStarfield() {

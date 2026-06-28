@@ -148,7 +148,7 @@ export class TowerEntity {
 
   constructor(scene: BABYLON.Scene, def: TowerDef, worldPos: BABYLON.Vector3, row: number, col: number) {
     this.scene = scene;
-    this.def = def;
+    this.def = { ...def };
     this.row = row;
     this.col = col;
     this.rangeSq = def.range * def.range;
@@ -223,7 +223,7 @@ export class TowerEntity {
 
   evolve(newDef: TowerDef, newLevel: number) {
     this.evolvedFrom = this.def.id;
-    this.def = newDef;
+    this.def = { ...newDef };
     this.level = newLevel;
     this.rangeSq = newDef.range * newDef.range;
 
@@ -267,6 +267,25 @@ export class TowerEntity {
     this.readyToExplode = false;
     this.pulsarTimer = 0;
     this.attackCooldown = 0;
+
+    // Clear synergy/aura shadow properties to prevent stale originals
+    const self = this as any;
+    delete self._origAttackRate;
+    delete self._origDamage;
+    delete self._origSynDamage;
+    delete self._origBinaryRate;
+    delete self._origRange;
+    delete self._origArmorDebuff;
+    delete self._origMagRange;
+    self._auraBuffed = false;
+    self._synergyRateBuff = false;
+    self._synergyDmgBuff = false;
+    self._binaryRateBuff = false;
+    self._swordRangeBuff = false;
+    self._nucleoArmorBuff = false;
+    self._magnetoRangeBuff = false;
+    self._orionPiercing = false;
+    self._trinaryMultiTarget = false;
   }
 
   disable(duration: number) {

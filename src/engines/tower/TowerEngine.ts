@@ -58,16 +58,12 @@ export class TowerEngine {
     return tower;
   }
 
-  fixedUpdate(dt: number, waveEngine: WaveEngine) {
-    const enemies = waveEngine.getAliveEnemies();
-
-    // Reset aura buffs from previous frame
+  resetBuffs() {
     for (const tower of this.towers) {
       if ((tower as any)._auraBuffed) {
         tower.def.damage = (tower as any)._origDamage;
         (tower as any)._auraBuffed = false;
       }
-      // Reset synergy buffs from previous frame
       if ((tower as any)._synergyRateBuff) {
         tower.def.attackRate = (tower as any)._origAttackRate;
         (tower as any)._synergyRateBuff = false;
@@ -95,6 +91,13 @@ export class TowerEngine {
       (tower as any)._orionPiercing = false;
       (tower as any)._trinaryMultiTarget = false;
     }
+  }
+
+  fixedUpdate(dt: number, waveEngine: WaveEngine) {
+    const enemies = waveEngine.getAliveEnemies();
+
+    // Reset aura/synergy buffs from previous frame
+    this.resetBuffs();
 
     // Evaluate synergies (only when tower layout changes)
     if (this._synergyDirty) {
@@ -107,7 +110,7 @@ export class TowerEngine {
       if (syn.id === 'winter_triangle') {
         for (const t of syn.affectedTowers) {
           if (!(t as any)._synergyRateBuff) {
-            (t as any)._origAttackRate = (t as any)._origAttackRate ?? t.def.attackRate;
+            (t as any)._origAttackRate = t.def.attackRate;
             t.def.attackRate = t.def.attackRate * 1.2;
             (t as any)._synergyRateBuff = true;
           }
@@ -125,7 +128,7 @@ export class TowerEngine {
       if (syn.id === 'binary_star') {
         for (const t of syn.affectedTowers) {
           if (!(t as any)._binaryRateBuff) {
-            (t as any)._origBinaryRate = (t as any)._origBinaryRate ?? t.def.attackRate;
+            (t as any)._origBinaryRate = t.def.attackRate;
             t.def.attackRate = t.def.attackRate * 1.15;
             (t as any)._binaryRateBuff = true;
           }
@@ -565,15 +568,20 @@ export class TowerEngine {
     }
   }
 
+  clearProjectiles() {
+    for (const p of this.projectiles) p.dispose();
+    this.projectiles = [];
+    this.resetBuffs();
+  }
+
   clear() {
     for (const t of this.towers) t.dispose();
-    for (const p of this.projectiles) p.dispose();
+    this.clearProjectiles();
     for (const r of this.nebulaRemnants) {
       r.mat.dispose();
       r.mesh.dispose();
     }
     this.towers = [];
-    this.projectiles = [];
     this.nebulaRemnants = [];
     this.nebulaDebuffs = [];
     this.specialTimers.clear();
