@@ -28,6 +28,7 @@ import { getEvolutions, getEvolutionCost } from '@/engines/tower/EvolutionSystem
 import type { MapDef } from '@/shared/data/MapData';
 import type { WaveDef } from '@/shared/data/WaveData';
 import type { TowerEntity } from '@/engines/tower/TowerEntity';
+import { computeMobileCameraTargetOffset, isMobileLandscapeGameplay } from '@/shared/ui/MobileLayout';
 
 // ── Tutorial messages (map_1_1 specific) ──
 const TUTORIALS: Record<number, string> = {
@@ -272,6 +273,21 @@ export class FlowController {
     this.canvas.style.top = '50%';
     this.canvas.style.transform = 'translate(-50%, -50%)';
     this.engine.resize();
+
+    if (this.screenState === 'gameplay') {
+      this.applyCameraFraming();
+    }
+  }
+
+  /** Mobile-only: pan camera target (not zoom) to keep map clear of HUD overlays */
+  private applyCameraFraming() {
+    this.camera.targetScreenOffset.set(0, 0);
+    if (!isMobileLandscapeGameplay()) {
+      this.camera.target.copyFromFloats(0, 0, 0);
+      return;
+    }
+    const z = computeMobileCameraTargetOffset(this.camera.radius);
+    this.camera.target.copyFromFloats(0, 0, z);
   }
 
   showMapSelect() {
@@ -304,12 +320,7 @@ export class FlowController {
     this.camera.radius = camDist;
     this.camera.lowerRadiusLimit = camDist;
     this.camera.upperRadiusLimit = camDist;
-
-    const vvh = window.visualViewport?.height ?? window.innerHeight;
-    const vvw = window.visualViewport?.width ?? window.innerWidth;
-    const mob = 'ontouchstart' in window && vvh <= 500 && vvw > vvh;
-    const hudOffset = mob ? camDist * 0.06 : 0;
-    this.camera.target = new BABYLON.Vector3(0, 0, hudOffset);
+    this.applyCameraFraming();
 
     const env = config.environment ? MAP_ENVIRONMENTS[config.environment] : undefined;
     const ismMult = env?.ismMultiplier ?? 1;

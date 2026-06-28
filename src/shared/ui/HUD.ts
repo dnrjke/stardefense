@@ -7,6 +7,7 @@ import type { WaveDef } from '@/shared/data/WaveData';
 import { EVOLUTION_TREE, getEvolutions } from '@/engines/tower/EvolutionSystem';
 import { ciToRgb } from '@/shared/data/ColorUtil';
 import { createNebulaPreview, createTowerPreview, disposeNebulaPreview, preloadPreviewShaders } from '@/shared/ui/NebulaPreview';
+import { getTowerRoleTag, getRoleTagStyle } from '@/shared/data/TowerRoleTags';
 
 /** Detect mobile landscape: narrow height + touch support */
 function isMobileLandscape(): boolean {
@@ -133,7 +134,7 @@ export class HUD {
 
     // Left info panel — shows tower/nebula details when selected
     this.infoPanel = document.createElement('div');
-    this.infoPanel.style.cssText = `position:absolute;left:calc(8px + ${safeInset('left')});top:50px;width:${mob ? 140 : 180}px;background:rgba(0,0,10,0.85);border:1px solid #446;border-radius:8px;padding:12px;pointer-events:auto;display:none;font-size:${mob ? 10 : 11}px;line-height:1.5;color:#ccd;max-height:calc(100dvh - 50px - ${mob ? 58 : 72}px - 16px);overflow-y:auto;touch-action:pan-y;scrollbar-width:none;-ms-overflow-style:none;`;
+    this.infoPanel.style.cssText = `position:absolute;left:calc(8px + ${safeInset('left')});top:50px;width:${mob ? 148 : 196}px;background:rgba(0,0,10,0.85);border:1px solid #446;border-radius:8px;padding:12px;pointer-events:auto;display:none;font-size:${mob ? 10 : 11}px;line-height:1.5;color:#ccd;max-height:calc(100dvh - 50px - ${mob ? 58 : 72}px - 16px);overflow-y:auto;touch-action:pan-y;scrollbar-width:none;-ms-overflow-style:none;`;
     this.container.appendChild(this.infoPanel);
 
     if (!document.getElementById('hideScrollbarStyle')) {
@@ -470,7 +471,7 @@ export class HUD {
     disposeNebulaPreview();
     this.infoPanel.style.visibility = 'hidden';
     this.infoPanel.style.display = 'block';
-    this.infoPanel.style.width = mob ? '140px' : '180px';
+    this.infoPanel.style.width = mob ? '148px' : '196px';
     this.infoPanel.innerHTML = '';
 
     const fs = mob ? 10 : 11;
@@ -480,11 +481,43 @@ export class HUD {
       const def = TOWER_DEFS[this.selectedTowerId];
       if (!def) return;
 
-      // Name + spectral type
+      // Name
       const header = document.createElement('div');
-      header.style.cssText = `font-size:${fs + 2}px;font-weight:bold;margin-bottom:6px;color:#eef;`;
-      header.textContent = `${def.nameKo} [${def.spectralType}]`;
+      header.style.cssText = `font-size:${fs + 2}px;font-weight:bold;margin-bottom:4px;color:#eef;line-height:1.2;`;
+      header.textContent = def.nameKo;
       this.infoPanel.appendChild(header);
+
+      // Spectral type + role tag
+      const metaRow = document.createElement('div');
+      metaRow.style.cssText = 'display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:8px;';
+
+      const specChip = document.createElement('span');
+      specChip.style.cssText = `font-size:${fsSmall}px;color:#667;font-family:monospace;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);line-height:1.5;`;
+      specChip.textContent = def.spectralType;
+      metaRow.appendChild(specChip);
+
+      const role = getTowerRoleTag(this.selectedTowerId, def);
+      if (role) {
+        const rs = getRoleTagStyle(role.category);
+        const rolePill = document.createElement('span');
+        rolePill.textContent = role.label;
+        rolePill.title = '전투 역할';
+        rolePill.style.cssText = [
+          `font-size:${fsSmall}px`,
+          'font-weight:bold',
+          'padding:2px 8px',
+          'border-radius:99px',
+          `background:${rs.bg}`,
+          `border:1px solid ${rs.border}`,
+          `color:${rs.color}`,
+          'letter-spacing:0.2px',
+          'line-height:1.5',
+          'white-space:nowrap',
+        ].join(';');
+        metaRow.appendChild(rolePill);
+      }
+
+      this.infoPanel.appendChild(metaRow);
 
       // Live shader preview (same GLSL as in-game towerStar shader)
       const previewSize = mob ? 56 : 64;
