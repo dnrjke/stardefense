@@ -247,11 +247,12 @@ export class FlowController {
     this.engine.runRenderLoop(() => this.renderLoop());
     this.resizeCanvas();
     window.addEventListener('resize', () => this.resizeCanvas());
+    window.visualViewport?.addEventListener('resize', () => this.resizeCanvas());
   }
 
   private resizeCanvas() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const w = window.visualViewport?.width ?? window.innerWidth;
+    const h = window.visualViewport?.height ?? window.innerHeight;
     const targetAspect = 16 / 10;
     let cw: number;
     let ch: number;
@@ -304,7 +305,9 @@ export class FlowController {
     this.camera.lowerRadiusLimit = camDist;
     this.camera.upperRadiusLimit = camDist;
 
-    const mob = 'ontouchstart' in window && window.innerHeight <= 500 && window.innerWidth > window.innerHeight;
+    const vvh = window.visualViewport?.height ?? window.innerHeight;
+    const vvw = window.visualViewport?.width ?? window.innerWidth;
+    const mob = 'ontouchstart' in window && vvh <= 500 && vvw > vvh;
     const hudOffset = mob ? camDist * 0.06 : 0;
     this.camera.target = new BABYLON.Vector3(0, 0, hudOffset);
 

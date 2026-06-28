@@ -18,6 +18,8 @@ function isMobileLandscape(): boolean {
 
 export class MutationSelectUI {
   private container: HTMLDivElement;
+  private _mutations: MutationDef[] = [];
+  private _resizeHandler: (() => void) | null = null;
   onSelect: ((mutationId: string) => void) | null = null;
 
   constructor() {
@@ -27,7 +29,15 @@ export class MutationSelectUI {
   }
 
   show(mutations: MutationDef[]) {
+    this._mutations = mutations;
     this.container.style.display = 'flex';
+    this.render();
+    this._resizeHandler = () => this.render();
+    window.addEventListener('resize', this._resizeHandler);
+    window.visualViewport?.addEventListener('resize', this._resizeHandler);
+  }
+
+  private render() {
     this.container.innerHTML = '';
     const mob = isMobileLandscape();
 
@@ -42,7 +52,7 @@ export class MutationSelectUI {
     const row = document.createElement('div');
     row.style.cssText = `display:flex;gap:${mob ? 10 : 16}px;justify-content:center;flex-wrap:${mob ? 'wrap' : 'nowrap'};`;
 
-    for (const mut of mutations) {
+    for (const mut of this._mutations) {
       const borderColor = CATEGORY_COLORS[mut.category] || '#88f';
 
       const card = document.createElement('div');
@@ -77,9 +87,15 @@ export class MutationSelectUI {
 
   hide() {
     this.container.style.display = 'none';
+    if (this._resizeHandler) {
+      window.removeEventListener('resize', this._resizeHandler);
+      window.visualViewport?.removeEventListener('resize', this._resizeHandler);
+      this._resizeHandler = null;
+    }
   }
 
   dispose() {
+    this.hide();
     this.container.remove();
   }
 }

@@ -46,10 +46,15 @@ export class MapSelectScreen {
     document.body.appendChild(this.container);
   }
 
+  private _resizeHandler: (() => void) | null = null;
+
   show() {
     this.container.style.display = 'block';
     this.render();
     this.unsubscribe = this.store.subscribe(() => this.render());
+    this._resizeHandler = () => this.render();
+    window.addEventListener('resize', this._resizeHandler);
+    window.visualViewport?.addEventListener('resize', this._resizeHandler);
   }
 
   hide() {
@@ -57,6 +62,11 @@ export class MapSelectScreen {
     if (this.unsubscribe) {
       this.unsubscribe();
       this.unsubscribe = null;
+    }
+    if (this._resizeHandler) {
+      window.removeEventListener('resize', this._resizeHandler);
+      window.visualViewport?.removeEventListener('resize', this._resizeHandler);
+      this._resizeHandler = null;
     }
   }
 

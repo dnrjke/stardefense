@@ -36,7 +36,6 @@ export class RadialMenu {
     this.items = items;
     this.visible = true;
     this.showTime = Date.now();
-    this.container.style.pointerEvents = 'auto';
     this.container.innerHTML = '';
 
     const mob = isMobileLandscape();
@@ -46,15 +45,15 @@ export class RadialMenu {
     const ringSize = mob ? 64 : 56;
 
     // Clamp position so menu does not overflow viewport on mobile
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
+    const vw = window.visualViewport?.width ?? window.innerWidth;
+    const vh = window.visualViewport?.height ?? window.innerHeight;
     const margin = radius + btnSize / 2 + 4;
     const cx = Math.max(margin, Math.min(vw - margin, screenX));
     const cy = Math.max(margin, Math.min(vh - margin, screenY));
 
     // Backdrop (click/tap to close)
     const backdrop = document.createElement('div');
-    backdrop.style.cssText = `position:absolute;top:${mob ? 36 : 40}px;left:0;width:100%;height:calc(100% - ${mob ? 36 : 40}px);`;
+    backdrop.style.cssText = `position:absolute;top:${mob ? 36 : 40}px;left:0;width:100%;height:calc(100% - ${mob ? 36 : 40}px);pointer-events:auto;`;
     backdrop.onclick = (e) => {
       e.stopPropagation();
       if (Date.now() - this.showTime < 250) return;

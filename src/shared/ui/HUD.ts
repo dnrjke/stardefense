@@ -172,6 +172,7 @@ export class HUD {
 
     // Re-render on orientation / resize changes
     window.addEventListener('resize', () => this.render());
+    window.visualViewport?.addEventListener('resize', () => this.render());
 
     // Preload shader programs for instant preview rendering
     preloadPreviewShaders();
