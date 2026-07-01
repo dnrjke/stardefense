@@ -106,6 +106,13 @@ export class WaveEngine {
     }
   }
 
+  /** 가로↔세로 전환 시 살아있는 모든 적의 HP 바 방향 갱신 */
+  updateHpBarOrientations(portrait: boolean) {
+    for (const enemy of this.enemies) {
+      if (enemy.alive) enemy.updateHpBarOrientation(portrait);
+    }
+  }
+
   interpolate(alpha: number) {
     for (const enemy of this.enemies) {
       enemy.interpolate(alpha);

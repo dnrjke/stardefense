@@ -1,5 +1,6 @@
 import * as BABYLON from '@babylonjs/core';
 import type { EnemyDef } from '@/shared/data/EnemyData';
+import { displayMode } from '@/shared/ui/DisplayMode';
 
 // ── Enemy Shaders ─────────────────────────────────────────────────────────
 
@@ -576,12 +577,15 @@ export class EnemyEntity {
   private nextPos: BABYLON.Vector3;
   private hpBar: BABYLON.Mesh | null = null;
   private hpBarBg: BABYLON.Mesh | null = null;
+  /** HP 바 부모. 본체 회전(혜성 heading 등)을 상쇄해 바가 화면 기준 방향을 유지하게 함 */
+  private hpAnchor: BABYLON.TransformNode | null = null;
   private readonly hpBarWidth = 0.6;
   private shaderMat: BABYLON.ShaderMaterial | null = null;
   private timeAccum = 0;
   private cometTail: BABYLON.Mesh | null = null;
   private cometTailMat: BABYLON.StandardMaterial | null = null;
   slowMultiplier = 1.0;
+  private _isPortrait = false;
   slowTimer = 0;
 
   constructor(scene: BABYLON.Scene, def: EnemyDef, waypoints: BABYLON.Vector3[], startWaypoint = 0) {
@@ -680,13 +684,16 @@ export class EnemyEntity {
     }
     this.mesh.isPickable = false;
 
+    this.hpAnchor = new BABYLON.TransformNode(`hpAnchor_${this.mesh.name}`, scene);
+    this.hpAnchor.parent = this.mesh;
+
     this.hpBarBg = BABYLON.MeshBuilder.CreatePlane(`hpBg_${this.mesh.name}`, {
       width: this.hpBarWidth,
       height: 0.08,
     }, scene);
     this.hpBarBg.rotation.x = Math.PI / 2;
     this.hpBarBg.position.y = 0.02;
-    this.hpBarBg.parent = this.mesh;
+    this.hpBarBg.parent = this.hpAnchor;
     this.hpBarBg.position.z = -(def.radius + 0.12);
     const bgMat = new BABYLON.StandardMaterial(`hpBgMat_${this.mesh.name}`, scene);
     bgMat.diffuseColor = new BABYLON.Color3(0.15, 0.15, 0.15);
@@ -701,7 +708,7 @@ export class EnemyEntity {
     }, scene);
     this.hpBar.rotation.x = Math.PI / 2;
     this.hpBar.position.y = 0.025;
-    this.hpBar.parent = this.mesh;
+    this.hpBar.parent = this.hpAnchor;
     this.hpBar.position.z = -(def.radius + 0.12);
     const fgMat = new BABYLON.StandardMaterial(`hpFgMat_${this.mesh.name}`, scene);
     fgMat.diffuseColor = new BABYLON.Color3(0.2, 0.9, 0.3);
@@ -709,6 +716,8 @@ export class EnemyEntity {
     fgMat.specularColor = BABYLON.Color3.Black();
     this.hpBar.material = fgMat;
     this.hpBar.isPickable = false;
+
+    this.updateHpBarOrientation(displayMode.isPortrait);
 
     const startIdx = startWaypoint || 0;
     this.prevPos = (waypoints[startIdx] ?? waypoints[0]).clone();
@@ -752,6 +761,8 @@ export class EnemyEntity {
       const dz = target.z - this.mesh.position.z;
       const angle = Math.atan2(dx, dz);
       this.mesh.rotation.y = angle;
+      // HP 바는 본체 heading 회전을 상쇄해 화면 기준 방향 유지
+      if (this.hpAnchor) this.hpAnchor.rotation.y = -angle;
     }
   }
 
@@ -799,14 +810,51 @@ export class EnemyEntity {
     this.mesh.position.z = this.prevPos.z + (this.nextPos.z - this.prevPos.z) * alpha;
   }
 
+  updateHpBarOrientation(portrait: boolean) {
+    if (!this.hpBar || !this.hpBarBg) return;
+    this._isPortrait = portrait;
+    const offset = this.def.radius + 0.12;
+    const yaw = portrait ? Math.PI / 2 : 0;
+
+    this.hpBar.rotation.y = yaw;
+    this.hpBarBg.rotation.y = yaw;
+    if (portrait) {
+      this.hpBarBg.position.x = -offset;
+      this.hpBarBg.position.z = 0;
+    } else {
+      this.hpBarBg.position.x = 0;
+      this.hpBarBg.position.z = -offset;
+    }
+    this.applyHpBarShrink();
+  }
+
+  /**
+   * 현재 HP 비율에 맞춰 바를 축소하고 한쪽 끝(화면 왼쪽)을 고정.
+   * rotation.y=π/2(세로 모드) 시 바의 길이 축(로컬 X)이 월드 Z로 매핑되므로
+   * 고정 오프셋도 축에 맞춰 적용해야 한다.
+   */
+  private applyHpBarShrink() {
+    if (!this.hpBar) return;
+    const ratio = Math.max(0, this.hp / this.def.hp);
+    this.hpBar.scaling.x = ratio;
+    const shrink = (this.hpBarWidth * (1 - ratio)) / 2;
+    const offset = this.def.radius + 0.12;
+    if (this._isPortrait) {
+      this.hpBar.position.x = -offset;
+      this.hpBar.position.z = shrink;
+    } else {
+      this.hpBar.position.x = -shrink;
+      this.hpBar.position.z = -offset;
+    }
+  }
+
   takeDamage(amount: number): boolean {
     const effective = Math.max(1, amount - this.def.armor);
     this.hp -= effective;
 
-    const ratio = Math.max(0, this.hp / this.def.hp);
     if (this.hpBar) {
-      this.hpBar.scaling.x = ratio;
-      this.hpBar.position.x = -(this.hpBarWidth * (1 - ratio)) / 2;
+      this.applyHpBarShrink();
+      const ratio = Math.max(0, this.hp / this.def.hp);
       const mat = this.hpBar.material as BABYLON.StandardMaterial;
       mat.diffuseColor.r = ratio < 0.5 ? 0.9 : 0.2 + (1 - ratio) * 1.4;
       mat.diffuseColor.g = ratio > 0.5 ? 0.9 : ratio * 1.8;
@@ -830,8 +878,10 @@ export class EnemyEntity {
   }
 
   dispose() {
-    this.hpBar?.dispose();
-    this.hpBarBg?.dispose();
+    // dispose(doNotRecurse, disposeMaterialAndTextures=true) — HP 바 재질 누수 방지
+    this.hpBar?.dispose(false, true);
+    this.hpBarBg?.dispose(false, true);
+    this.hpAnchor?.dispose();
     this.cometTailMat?.dispose();
     this.cometTail?.dispose();
     this.shaderMat?.dispose();

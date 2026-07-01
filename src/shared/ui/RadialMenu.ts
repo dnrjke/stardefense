@@ -1,19 +1,11 @@
-import * as BABYLON from '@babylonjs/core';
-import { getTopBarHeight } from '@/shared/ui/HUD';
+import { displayMode } from '@/shared/ui/DisplayMode';
+import { getProfile } from '@/shared/ui/LayoutProfile';
 
 export interface RadialMenuItem {
   id: string;
   label: string;
   color: string;
   disabled?: boolean;
-}
-
-/** Detect mobile landscape for touch-friendly sizing */
-function isMobileLandscape(): boolean {
-  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  const vh = window.visualViewport?.height ?? window.innerHeight;
-  const vw = window.visualViewport?.width ?? window.innerWidth;
-  return hasTouch && vh <= 600 && vw > vh;
 }
 
 export class RadialMenu {
@@ -23,8 +15,6 @@ export class RadialMenu {
   onSelect: ((itemId: string) => void) | null = null;
   onClose: (() => void) | null = null;
 
-  private readonly radius = 52;
-  private readonly btnSize = 40;
   private showTime = 0;
 
   constructor() {
@@ -39,22 +29,35 @@ export class RadialMenu {
     this.showTime = Date.now();
     this.container.innerHTML = '';
 
-    const mob = isMobileLandscape();
-    const btnSize = mob ? 48 : this.btnSize;
-    const radius = mob ? 62 : this.radius;
-    const fontSize = mob ? 11 : 10;
-    const ringSize = mob ? 64 : 56;
+    const p = getProfile(displayMode.mode);
+    const btnSize = p.radialBtnSize;
+    const radius = p.radialRadius;
+    const fontSize = p.radialFontSize;
+    const ringSize = p.radialRingSize;
 
-    // Clamp position so menu does not overflow viewport on mobile
     const vw = window.visualViewport?.width ?? window.innerWidth;
     const vh = window.visualViewport?.height ?? window.innerHeight;
-    const margin = radius + btnSize / 2 + 4;
-    const cx = Math.max(margin, Math.min(vw - margin, screenX));
-    const cy = Math.max(margin, Math.min(vh - margin, screenY));
 
-    // Backdrop (click/tap to close)
+    // 실제 버튼 배치 각도 기준 축별 필요 여백만큼만 클램프
+    // (예: 버튼 2개는 상하로만 펼쳐지므로 가로는 링 폭만 확보하면 됨)
+    const ringHalf = ringSize / 2;
+    const count = items.length;
+    const startAngle = -Math.PI / 2;
+    let extLeft = ringHalf, extRight = ringHalf, extUp = ringHalf, extDown = ringHalf;
+    for (let i = 0; i < count; i++) {
+      const angle = startAngle + (2 * Math.PI * i) / count;
+      const ox = Math.cos(angle) * radius;
+      const oy = Math.sin(angle) * radius;
+      extLeft = Math.max(extLeft, -ox + btnSize / 2);
+      extRight = Math.max(extRight, ox + btnSize / 2);
+      extUp = Math.max(extUp, -oy + btnSize / 2);
+      extDown = Math.max(extDown, oy + btnSize / 2);
+    }
+    const cx = Math.max(extLeft + 4, Math.min(vw - extRight - 4, screenX));
+    const cy = Math.max(extUp + 4, Math.min(vh - extDown - 4, screenY));
+
     const backdrop = document.createElement('div');
-    const topBarH = getTopBarHeight();
+    const topBarH = p.topBarHeight;
     backdrop.style.cssText = `position:absolute;top:${topBarH}px;left:0;width:100%;height:calc(100% - ${topBarH}px);pointer-events:auto;`;
     backdrop.onclick = (e) => {
       e.stopPropagation();
@@ -64,15 +67,9 @@ export class RadialMenu {
     };
     this.container.appendChild(backdrop);
 
-    // Center ring indicator
     const ring = document.createElement('div');
-    const ringHalf = ringSize / 2;
     ring.style.cssText = `position:absolute;left:${cx - ringHalf}px;top:${cy - ringHalf}px;width:${ringSize}px;height:${ringSize}px;border:2px solid rgba(100,120,200,0.5);border-radius:50%;pointer-events:none;`;
     this.container.appendChild(ring);
-
-    // Buttons arranged in circle
-    const count = items.length;
-    const startAngle = -Math.PI / 2; // top
 
     for (let i = 0; i < count; i++) {
       const item = items[i];
@@ -119,18 +116,6 @@ export class RadialMenu {
   }
 
   isVisible(): boolean { return this.visible; }
-
-  worldToScreen(worldPos: BABYLON.Vector3, scene: BABYLON.Scene, engine: BABYLON.Engine): { x: number; y: number } {
-    const projected = BABYLON.Vector3.Project(
-      worldPos,
-      BABYLON.Matrix.Identity(),
-      scene.getTransformMatrix(),
-      scene.activeCamera!.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight()),
-    );
-    const dpr = engine.getHardwareScalingLevel();
-    const rect = engine.getRenderingCanvas()!.getBoundingClientRect();
-    return { x: projected.x * dpr + rect.left, y: projected.y * dpr + rect.top };
-  }
 
   dispose() {
     this.container.remove();

@@ -28,7 +28,9 @@ import { getEvolutions, getEvolutionCost } from '@/engines/tower/EvolutionSystem
 import type { MapDef } from '@/shared/data/MapData';
 import type { WaveDef } from '@/shared/data/WaveData';
 import type { TowerEntity } from '@/engines/tower/TowerEntity';
-import { computeMobileCameraTargetOffset, isMobileLandscapeGameplay } from '@/shared/ui/MobileLayout';
+import { displayMode } from '@/shared/ui/DisplayMode';
+import { getProfile } from '@/shared/ui/LayoutProfile';
+import { worldToScreen } from '@/shared/ui/ScreenProjection';
 
 // ── Tutorial messages (map_1_1 specific) ──
 const TUTORIALS: Record<number, string> = {
@@ -222,6 +224,8 @@ export class FlowController {
     this.canvas = canvas;
 
     // Babylon engine (created once, reused)
+    displayMode.init();
+
     this.engine = new BABYLON.Engine(canvas, true, {
       preserveDrawingBuffer: false,
       stencil: true,
@@ -230,6 +234,7 @@ export class FlowController {
     this.scene = new BABYLON.Scene(this.engine);
     this.scene.clearColor = new BABYLON.Color4(0.02, 0.02, 0.06, 1);
     this.scene.skipPointerMovePicking = true;
+    if (import.meta.env.DEV) { (window as any).__scene = this.scene; (window as any).BABYLON = BABYLON; }
 
     this.setupCamera();
     this.setupLighting();
@@ -247,23 +252,40 @@ export class FlowController {
     // Render loop (always running)
     this.engine.runRenderLoop(() => this.renderLoop());
     this.resizeCanvas();
-    window.addEventListener('resize', () => this.resizeCanvas());
-    window.visualViewport?.addEventListener('resize', () => this.resizeCanvas());
+    displayMode.subscribe(() => {
+      this.resizeCanvas();
+      this.waveEngine?.updateHpBarOrientations(displayMode.isPortrait);
+      this.hud?.render();
+    });
   }
 
   private resizeCanvas() {
-    const w = window.visualViewport?.width ?? window.innerWidth;
-    const h = window.visualViewport?.height ?? window.innerHeight;
+    const rotation = displayMode.rotation;
+    const vw = window.visualViewport?.width ?? window.innerWidth;
+    const vh = window.visualViewport?.height ?? window.innerHeight;
     const targetAspect = 16 / 10;
+
     let cw: number;
     let ch: number;
 
-    if (w / h > targetAspect) {
-      ch = h;
-      cw = h * targetAspect;
+    if (rotation === 90) {
+      // rotate(90deg) 후 시각적 width=ch, height=cw
+      // 제약: ch ≤ vw, cw ≤ vh, cw/ch = targetAspect
+      if (vh / vw > targetAspect) {
+        ch = vw;
+        cw = vw * targetAspect;
+      } else {
+        cw = vh;
+        ch = vh / targetAspect;
+      }
     } else {
-      cw = w;
-      ch = w / targetAspect;
+      if (vw / vh > targetAspect) {
+        ch = vh;
+        cw = vh * targetAspect;
+      } else {
+        cw = vw;
+        ch = cw / targetAspect;
+      }
     }
 
     this.canvas.style.width = `${cw}px`;
@@ -271,7 +293,9 @@ export class FlowController {
     this.canvas.style.position = 'absolute';
     this.canvas.style.left = '50%';
     this.canvas.style.top = '50%';
-    this.canvas.style.transform = 'translate(-50%, -50%)';
+    this.canvas.style.transform = rotation === 90
+      ? 'translate(-50%, -50%) rotate(90deg)'
+      : 'translate(-50%, -50%)';
     this.engine.resize();
 
     if (this.screenState === 'gameplay') {
@@ -279,15 +303,30 @@ export class FlowController {
     }
   }
 
-  /** Mobile-only: pan camera target (not zoom) to keep map clear of HUD overlays */
   private applyCameraFraming() {
     this.camera.targetScreenOffset.set(0, 0);
-    if (!isMobileLandscapeGameplay()) {
+    const { mode, canvasRotation } = displayMode.get();
+
+    if (mode === 'desktop') {
+      this.camera.beta = 0.1;
       this.camera.target.copyFromFloats(0, 0, 0);
       return;
     }
-    const z = computeMobileCameraTargetOffset(this.camera.radius);
-    this.camera.target.copyFromFloats(0, 0, z);
+
+    if (canvasRotation === 0) {
+      this.camera.beta = 0.1;
+      const p = getProfile(mode);
+      const vh = window.visualViewport?.height ?? window.innerHeight;
+      const occlusion = (p.bottomHudHeight * 1.6 + p.topBarHeight * 0.4) / Math.max(vh, 1);
+      let offset = this.camera.radius * occlusion * 0.104;
+      if (vh <= 340) offset += this.camera.radius * 0.012;
+      else if (vh <= 375) offset += this.camera.radius * 0.009;
+      else if (vh <= 414) offset += this.camera.radius * 0.005;
+      this.camera.target.copyFromFloats(0, 0, -Math.min(offset, this.camera.radius * 0.048));
+    } else {
+      this.camera.beta = 0.001;
+      this.camera.target.copyFromFloats(0, 0, 0);
+    }
   }
 
   showMapSelect() {
@@ -307,6 +346,7 @@ export class FlowController {
     this.currentMapId = mapId;
     this.mapSelectScreen.hide();
     this.canvas.style.display = 'block';
+    this.resizeCanvas();
 
     // Create map
     const mapDef = config.createMap();
@@ -336,6 +376,7 @@ export class FlowController {
     const totalWaves = config.isSurvival ? 9999 : config.waves.length;
     this.gameStore = createGameStore(totalWaves);
     const store = this.gameStore;
+    if (import.meta.env.DEV) { (window as any).__gameStore = this.gameStore; }
 
     // Set available towers from config
     for (const tid of config.availableTowers) {
@@ -475,6 +516,7 @@ export class FlowController {
         if (state.currentWave > 0 && state.currentWave % 5 === 0) {
           state.setPhase('result');
           setTimeout(() => {
+            if (this.gameStore !== store) return; // 맵 이탈/재시작 후 타이머 발화 방지
             if (store.getState().phase !== 'result') return;
             const mutations = pickRandomMutations(store.getState().activeMutations, 3);
             if (mutations.length > 0 && this.mutationUI) {
@@ -487,6 +529,7 @@ export class FlowController {
         } else {
           state.setPhase('result');
           setTimeout(() => {
+            if (this.gameStore !== store) return; // 맵 이탈/재시작 후 타이머 발화 방지
             if (store.getState().phase === 'result') {
               store.getState().setPhase('build');
               this.hud!.render();
@@ -522,6 +565,7 @@ export class FlowController {
         } else {
           state.setPhase('result');
           setTimeout(() => {
+            if (this.gameStore !== store) return; // 맵 이탈/재시작 후 타이머 발화 방지
             if (store.getState().phase === 'result') {
               store.getState().setPhase('build');
               this.showTutorial();
@@ -623,6 +667,31 @@ export class FlowController {
       if (state.phase === 'gameover') return;
       if (this.radialMenu!.isVisible()) return;
 
+      // CSS rotate(90deg) 보정: Babylon의 기본 pickResult는 회전을 인지하지 못함
+      if (displayMode.isPortrait) {
+        const rect = this.canvas.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const sdx = _evt.clientX - cx;
+        const sdy = _evt.clientY - cy;
+        // 90° CW 역변환: (sdx, sdy) → (sdy, -sdx)
+        const canvasX = sdy + rect.height / 2;
+        const canvasY = -sdx + rect.width / 2;
+        if (import.meta.env.DEV) {
+          console.debug('[pick]', {
+            client: [_evt.clientX, _evt.clientY],
+            rect: [rect.left, rect.top, rect.width, rect.height],
+            sd: [sdx, sdy],
+            canvas: [canvasX, canvasY],
+            cssSize: [this.canvas.style.width, this.canvas.style.height],
+          });
+        }
+        pickResult = this.scene.pick(canvasX, canvasY);
+        if (import.meta.env.DEV && pickResult.hit) {
+          console.debug('[pick] hit:', pickResult.pickedMesh?.name, pickResult.pickedMesh?.metadata);
+        }
+      }
+
       if (!pickResult.hit || !pickResult.pickedMesh?.metadata) return;
       const meta = pickResult.pickedMesh.metadata;
 
@@ -634,7 +703,7 @@ export class FlowController {
         this.hud!.clearSelection();
         this.hud!.render();
 
-        const screenPos = this.radialMenu!.worldToScreen(tower.mesh.position, this.scene, this.engine);
+        const screenPos = worldToScreen(tower.mesh.position, this.scene, this.engine);
         const menuItems: import('@/shared/ui/RadialMenu').RadialMenuItem[] = [
           { id: 'sell', label: `철거\n+${tower.sellValue}`, color: '#f66' },
         ];
@@ -727,6 +796,8 @@ export class FlowController {
       }
     });
 
+    requestAnimationFrame(() => this.resizeCanvas());
+
     // Tutorial
     this.showTutorial();
   }
@@ -817,7 +888,7 @@ export class FlowController {
     // Immediately evaluate synergy preview for ghost placement
     this.updateSynergyPreview();
 
-    const screenPos = this.radialMenu!.worldToScreen(
+    const screenPos = worldToScreen(
       new BABYLON.Vector3(worldPos.x, 0.35, worldPos.z), this.scene, this.engine,
     );
     this.radialMenu!.show(screenPos.x, screenPos.y, [
@@ -878,12 +949,12 @@ export class FlowController {
       { frame: 15, value: 0 },
     ]);
     ring.animations = [scaleAnim, alphaAnim];
-    this.scene.beginAnimation(ring, 0, 15, false, 1, () => ring.dispose());
+    this.scene.beginAnimation(ring, 0, 15, false, 1, () => ring.dispose(false, true));
   }
 
   private clearPreview() {
-    if (this.previewMesh) { this.previewMesh.dispose(); this.previewMesh = null; }
-    if (this.previewRangeDisc) { this.previewRangeDisc.dispose(); this.previewRangeDisc = null; }
+    if (this.previewMesh) { this.previewMesh.dispose(false, true); this.previewMesh = null; }
+    if (this.previewRangeDisc) { this.previewRangeDisc.dispose(false, true); this.previewRangeDisc = null; }
     this.previewTowerId = null;
     this.previewRow = -1;
     this.previewCol = -1;
@@ -926,15 +997,7 @@ export class FlowController {
   }
 
   private showFloatingIsm(amount: number, worldPos: BABYLON.Vector3) {
-    const projected = BABYLON.Vector3.Project(
-      worldPos,
-      BABYLON.Matrix.Identity(),
-      this.scene.getTransformMatrix(),
-      this.camera.viewport.toGlobal(this.engine.getRenderWidth(), this.engine.getRenderHeight()),
-    );
-    const dpr = this.engine.getHardwareScalingLevel();
-    const rect = this.canvas.getBoundingClientRect();
-    const screenPos = { x: projected.x * dpr + rect.left, y: projected.y * dpr + rect.top };
+    const screenPos = worldToScreen(worldPos, this.scene, this.engine);
     const el = document.createElement('div');
     el.textContent = `+${amount}`;
     el.style.cssText = `position:fixed;left:${screenPos.x}px;top:${screenPos.y}px;color:#ff4;font-family:monospace;font-size:14px;font-weight:bold;pointer-events:none;z-index:20;text-shadow:0 0 4px rgba(255,255,0,0.5);transition:all 0.5s ease-out;`;
@@ -1007,7 +1070,7 @@ export class FlowController {
     this.camera = new BABYLON.ArcRotateCamera(
       'cam', -Math.PI / 2, 0.1, 16, BABYLON.Vector3.Zero(), this.scene,
     );
-    this.camera.lowerBetaLimit = 0.1;
+    this.camera.lowerBetaLimit = 0.001;
     this.camera.upperBetaLimit = 0.1;
     this.camera.lowerRadiusLimit = 16;
     this.camera.upperRadiusLimit = 16;
@@ -1024,11 +1087,11 @@ export class FlowController {
   }
 
   private setupGlow() {
-    const mob = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const p = getProfile(displayMode.mode);
     this.glowLayer = new BABYLON.GlowLayer('glowLayer', this.scene, {
-      blurKernelSize: mob ? 16 : 32,
+      blurKernelSize: p.glowKernelSize,
     });
-    this.glowLayer.intensity = mob ? 0.35 : 0.5;
+    this.glowLayer.intensity = p.glowIntensity;
   }
 
   private setupStarfield() {
@@ -1106,7 +1169,8 @@ export class FlowController {
     const dtSec = deltaMs / 1000;
 
     const alpha = this.fixedStep.advance(deltaMs, () => {
-      if (phase === 'wave') {
+      // 틱 도중 phase가 바뀔 수 있으므로 (게임오버 등) 매 틱 재확인
+      if (this.gameStore!.getState().phase === 'wave') {
         this.waveEngine!.fixedUpdate(this.fixedStep!.fixedDt);
         this.towerEngine!.fixedUpdate(this.fixedStep!.fixedDt, this.waveEngine!);
         if (this.nebulaEngine) {

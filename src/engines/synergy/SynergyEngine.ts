@@ -203,7 +203,7 @@ export class SynergyEngine {
           id: 'orion_belt',
           nameKo: '오리온 벨트',
           type: 'formation',
-          description: '동종 3기 일직선 → 관통 사격 50%',
+          description: '동종 3기 일직선 → 50% 확률 직선 관통탄 (최대 3기, 관통마다 70% 감쇠)',
           affectedTowers: [...orionSet],
         });
       }

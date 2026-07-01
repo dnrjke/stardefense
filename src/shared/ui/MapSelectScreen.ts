@@ -1,12 +1,5 @@
 import type { CampaignStore, MapInfo } from '@/app/store/CampaignStore';
-
-/** Detect mobile landscape for responsive layout */
-function isMobileLandscape(): boolean {
-  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  const vh = window.visualViewport?.height ?? window.innerHeight;
-  const vw = window.visualViewport?.width ?? window.innerWidth;
-  return hasTouch && vh <= 600 && vw > vh;
-}
+import { displayMode } from '@/shared/ui/DisplayMode';
 
 const ACT_TITLES: Record<number, { title: string; subtitle: string }> = {
   1: {
@@ -81,21 +74,17 @@ export class MapSelectScreen {
 
     this.container.innerHTML = '';
 
-    // Background overlay with animated stars
     const bg = document.createElement('div');
     bg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;background:radial-gradient(ellipse at center, #0a0a1a 0%, #020208 70%, #000 100%);overflow:hidden;';
     this.container.appendChild(bg);
 
-    // CSS star particles
     this.addStarParticles(bg);
 
-    // Main content wrapper
-    const mob = isMobileLandscape();
+    const mob = displayMode.isMobile;
     const content = document.createElement('div');
     content.style.cssText = `position:relative;z-index:1;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:${mob ? '16px 0' : '40px 0'};`;
     this.container.appendChild(content);
 
-    // Render each act section
     for (const actNum of [1, 2, 3, 4, 5]) {
       const act = ACT_TITLES[actNum];
       if (!act) continue;
@@ -105,7 +94,6 @@ export class MapSelectScreen {
       const actSection = document.createElement('div');
       actSection.style.cssText = `display:flex;flex-direction:column;align-items:center;margin-bottom:${mob ? 16 : 36}px;`;
 
-      // Act title
       const titleBlock = document.createElement('div');
       titleBlock.style.cssText = `text-align:center;margin-bottom:${mob ? 12 : 28}px;`;
 
@@ -122,7 +110,6 @@ export class MapSelectScreen {
 
       actSection.appendChild(titleBlock);
 
-      // Map path container — horizontally scrollable on mobile
       const pathContainer = document.createElement('div');
       pathContainer.style.cssText = `display:flex;align-items:center;gap:0;position:relative;${mob ? 'overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:90vw;padding:4px 8px;' : ''}`;
 
@@ -145,7 +132,6 @@ export class MapSelectScreen {
 
       actSection.appendChild(pathContainer);
 
-      // Inline description + start button below the selected stage's act
       const selectedInAct = actMaps.find(m => m.id === selected);
       if (selectedInAct) {
         const inlinePanel = document.createElement('div');
@@ -185,7 +171,6 @@ export class MapSelectScreen {
     const node = document.createElement('div');
     node.style.cssText = 'display:flex;flex-direction:column;align-items:center;cursor:pointer;position:relative;flex-shrink:0;';
 
-    // Map circle — smaller on mobile
     const circleSize = mob ? 52 : 72;
     const circle = document.createElement('div');
     let borderColor = '#334';
@@ -231,7 +216,6 @@ export class MapSelectScreen {
       };
     }
 
-    // Icon content inside circle
     if (!map.unlocked) {
       const lock = document.createElement('div');
       lock.style.cssText = `font-size:${mob ? 16 : 22}px;color:#334;`;
@@ -256,13 +240,11 @@ export class MapSelectScreen {
 
     node.appendChild(circle);
 
-    // Map name
     const name = document.createElement('div');
     name.textContent = map.nameKo;
     name.style.cssText = `font-size:${mob ? 10 : 12}px;color:${map.unlocked ? (map.isBoss ? '#cc8866' : '#8899bb') : '#334'};text-align:center;max-width:${mob ? 60 : 80}px;line-height:1.3;`;
     node.appendChild(name);
 
-    // Click handler — toggle selection on re-click
     if (map.unlocked) {
       node.onclick = () => {
         const current = this.store.getState().currentMapId;

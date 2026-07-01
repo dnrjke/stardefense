@@ -1,4 +1,5 @@
 import type { MutationDef } from '@/shared/data/MutationData';
+import { displayMode } from '@/shared/ui/DisplayMode';
 
 const CATEGORY_COLORS: Record<string, string> = {
   enemy_buff: '#f44',
@@ -8,13 +9,6 @@ const CATEGORY_COLORS: Record<string, string> = {
   reward: '#4f4',
   mixed: '#a4f',
 };
-
-function isMobileLandscape(): boolean {
-  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  const vh = window.visualViewport?.height ?? window.innerHeight;
-  const vw = window.visualViewport?.width ?? window.innerWidth;
-  return hasTouch && vh <= 600 && vw > vh;
-}
 
 export class MutationSelectUI {
   private container: HTMLDivElement;
@@ -39,7 +33,7 @@ export class MutationSelectUI {
 
   private render() {
     this.container.innerHTML = '';
-    const mob = isMobileLandscape();
+    const mob = displayMode.isMobile;
 
     const panel = document.createElement('div');
     panel.style.cssText = 'text-align:center;';

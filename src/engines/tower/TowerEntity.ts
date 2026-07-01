@@ -275,7 +275,7 @@ export class TowerEntity {
     this.mesh.isPickable = true;
     this.mesh.metadata = { type: 'tower', row: this.row, col: this.col };
 
-    this.rangeDisc.dispose();
+    this.rangeDisc.dispose(false, true);
     this.rangeDisc = BABYLON.MeshBuilder.CreateDisc(`range_${this.mesh.name}`, {
       radius: newDef.range,
       tessellation: 48,
@@ -386,7 +386,7 @@ export class TowerEntity {
   }
 
   dispose() {
-    this.rangeDisc.dispose();
+    this.rangeDisc.dispose(false, true);
     this.shaderMat.dispose();
     this.mesh.dispose();
   }

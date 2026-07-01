@@ -8,24 +8,7 @@ import { EVOLUTION_TREE, getEvolutions } from '@/engines/tower/EvolutionSystem';
 import { ciToRgb } from '@/shared/data/ColorUtil';
 import { createNebulaPreview, createTowerPreview, disposeNebulaPreview, preloadPreviewShaders } from '@/shared/ui/NebulaPreview';
 import { getTowerRoleTag, getRoleTagStyle } from '@/shared/data/TowerRoleTags';
-
-/** Detect mobile landscape: narrow height + touch support */
-function isMobileLandscape(): boolean {
-  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  const vh = window.visualViewport?.height ?? window.innerHeight;
-  const vw = window.visualViewport?.width ?? window.innerWidth;
-  return hasTouch && vh <= 600 && vw > vh;
-}
-
-/** Safe-area CSS value with fallback */
-function safeInset(side: string, fallback = '0px'): string {
-  return `env(safe-area-inset-${side}, ${fallback})`;
-}
-
-/** Top bar height — keep in sync with RadialMenu backdrop offset */
-export function getTopBarHeight(): number {
-  return isMobileLandscape() ? 36 : 40;
-}
+import { displayMode } from '@/shared/ui/DisplayMode';
 
 export class HUD {
   private container: HTMLDivElement;
@@ -38,6 +21,14 @@ export class HUD {
 
   private selectedTowerId: string | null = null;
   private selectedNebulaId: string | null = null;
+  /** 터치 기기(모바일+태블릿) 전용: 팔레트 버튼 홀드로 열람 중인 정보 대상 (바깥 탭 시 해제) */
+  private holdInfoKey: { kind: 'tower' | 'nebula'; id: string } | null = null;
+  private dismissHoldInfo = (e: PointerEvent) => {
+    if (!displayMode.isTouch || !this.holdInfoKey) return;
+    if (this.infoPanel.contains(e.target as Node)) return;
+    this.holdInfoKey = null;
+    this.updateInfoPanel();
+  };
   private infoPanel!: HTMLDivElement;
   private wavePreview!: HTMLSpanElement;
   private startWaveBtn!: HTMLButtonElement;
@@ -76,7 +67,7 @@ export class HUD {
   constructor(store: GameStore) {
     this.store = store;
 
-    const mob = isMobileLandscape();
+    const mob = displayMode.isMobile;
 
     this.container = document.createElement('div');
     this.container.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;font-family:monospace;color:#fff;';
@@ -84,47 +75,46 @@ export class HUD {
 
     // Wave preview — inline in top bar center
     this.wavePreview = document.createElement('span');
-    this.wavePreview.style.cssText = `font-size:${mob ? 10 : 11}px;color:#8af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${mob ? '30vw' : '300px'};display:none;`;
+    this.wavePreview.style.cssText = `font-size:var(--sd-wavepreview-fs);color:#8af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:var(--sd-wavepreview-maxw);display:none;`;
 
     // Top bar — persistent chrome (back/speed never recreated during render)
-    const topH = getTopBarHeight();
     this.topBar = document.createElement('div');
-    this.topBar.style.cssText = `position:absolute;top:0;left:0;right:0;height:${topH}px;background:rgba(0,0,0,0.7);display:flex;align-items:center;gap:${mob ? 4 : 8}px;padding:0 ${mob ? '8px' : '16px'};padding-left:calc(${mob ? '8px' : '16px'} + ${safeInset('left')});padding-right:calc(${mob ? '8px' : '16px'} + ${safeInset('right')});pointer-events:auto;font-size:${mob ? 12 : 14}px;z-index:15;`;
+    this.topBar.style.cssText = `position:absolute;top:0;left:0;right:0;height:var(--sd-top-h);background:rgba(0,0,0,0.7);display:flex;align-items:center;gap:var(--sd-top-gap);padding:var(--sd-top-pad);padding-left:var(--sd-top-pad-l);padding-right:var(--sd-top-pad-r);pointer-events:auto;font-size:var(--sd-top-fs);z-index:15;`;
     this.container.appendChild(this.topBar);
 
     this.backBtn = document.createElement('button');
     this.backBtn.textContent = 'BACK';
-    this.backBtn.style.cssText = `background:#322;color:#a88;border:1px solid #544;padding:${mob ? '6px 12px' : '4px 10px'};cursor:pointer;font-family:monospace;font-size:${mob ? 11 : 12}px;border-radius:4px;flex-shrink:0;min-height:${mob ? '32px' : 'auto'};`;
+    this.backBtn.style.cssText = `background:#322;color:#a88;border:1px solid #544;padding:var(--sd-back-pad);cursor:pointer;font-family:monospace;font-size:var(--sd-back-fs);border-radius:4px;flex-shrink:0;min-height:var(--sd-back-minh);`;
     this.backBtn.onclick = () => this.onBack?.();
     this.topBar.appendChild(this.backBtn);
 
     this.infoEl = document.createElement('span');
-    this.infoEl.style.cssText = mob ? 'font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;' : 'flex-shrink:0;';
+    this.infoEl.style.cssText = 'font-size:var(--sd-info-fs);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;';
     this.topBar.appendChild(this.infoEl);
 
     this.topBarCenter = document.createElement('div');
-    this.topBarCenter.style.cssText = `display:flex;align-items:center;gap:4px;flex:1;min-width:0;overflow:hidden;margin-left:${mob ? 4 : 8}px;`;
+    this.topBarCenter.style.cssText = `display:flex;align-items:center;gap:4px;flex:1;min-width:0;overflow:hidden;margin-left:var(--sd-topbar-center-ml);`;
     this.topBar.appendChild(this.topBarCenter);
     this.topBarCenter.appendChild(this.wavePreview);
 
     this.speedBtn = document.createElement('button');
-    this.speedBtn.style.cssText = `background:#333;color:#aaa;border:1px solid #555;padding:${mob ? '6px 14px' : '4px 12px'};cursor:pointer;font-family:monospace;font-size:${mob ? 12 : 13}px;font-weight:bold;border-radius:4px;min-height:${mob ? '32px' : 'auto'};flex-shrink:0;`;
+    this.speedBtn.style.cssText = `background:#333;color:#aaa;border:1px solid #555;padding:var(--sd-speed-pad);cursor:pointer;font-family:monospace;font-size:var(--sd-speed-fs);font-weight:bold;border-radius:4px;min-height:var(--sd-speed-minh);flex-shrink:0;`;
     this.speedBtn.onclick = () => this.onCycleSpeed?.();
     this.topBar.appendChild(this.speedBtn);
 
     // Bottom bar — taller touch targets on mobile
     this.bottomBar = document.createElement('div');
-    this.bottomBar.style.cssText = `position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;gap:${mob ? '4px' : '8px'};padding:${mob ? '6px' : '8px'} ${mob ? '6px' : '16px'};padding-left:calc(${mob ? '6px' : '16px'} + ${safeInset('left')});padding-right:calc(${mob ? '6px' : '16px'} + ${safeInset('right')});padding-bottom:calc(${mob ? '6px' : '8px'} + ${safeInset('bottom')});pointer-events:auto;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none;`;
+    this.bottomBar.style.cssText = `position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;gap:var(--sd-bot-gap);padding:var(--sd-bot-pad);padding-left:var(--sd-bot-pad-l);padding-right:var(--sd-bot-pad-r);padding-bottom:var(--sd-bot-pad-b);pointer-events:auto;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none;`;
     this.container.appendChild(this.bottomBar);
 
     // Tutorial overlay
     this.tutorialOverlay = document.createElement('div');
-    this.tutorialOverlay.style.cssText = `position:absolute;top:${mob ? 40 : 50}px;left:50%;transform:translateX(-50%);background:rgba(0,0,30,0.85);border:1px solid #446;padding:${mob ? '8px 16px' : '12px 24px'};border-radius:8px;font-size:${mob ? 12 : 14}px;text-align:center;pointer-events:auto;display:none;max-width:${mob ? '90vw' : '400px'};`;
+    this.tutorialOverlay.style.cssText = `position:absolute;top:var(--sd-tut-top);left:50%;transform:translateX(-50%);background:rgba(0,0,30,0.85);border:1px solid #446;padding:var(--sd-tut-pad);border-radius:8px;font-size:var(--sd-tut-fs);text-align:center;pointer-events:auto;display:none;max-width:var(--sd-tut-maxw);`;
     this.container.appendChild(this.tutorialOverlay);
 
     // Wave banner (shows briefly on wave clear)
     this.waveBanner = document.createElement('div');
-    this.waveBanner.style.cssText = `position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);font-size:${mob ? 18 : 24}px;color:#4af;text-shadow:0 0 20px rgba(60,120,255,0.6);pointer-events:none;display:none;font-weight:bold;`;
+    this.waveBanner.style.cssText = `position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);font-size:var(--sd-wave-fs);color:#4af;text-shadow:0 0 20px rgba(60,120,255,0.6);pointer-events:none;display:none;font-weight:bold;`;
     this.container.appendChild(this.waveBanner);
 
     // End screen
@@ -134,7 +124,7 @@ export class HUD {
 
     // Left info panel — shows tower/nebula details when selected
     this.infoPanel = document.createElement('div');
-    this.infoPanel.style.cssText = `position:absolute;left:calc(8px + ${safeInset('left')});top:50px;width:${mob ? 148 : 196}px;background:rgba(0,0,10,0.85);border:1px solid #446;border-radius:8px;padding:12px;pointer-events:auto;display:none;font-size:${mob ? 10 : 11}px;line-height:1.5;color:#ccd;max-height:calc(100dvh - 50px - ${mob ? 58 : 72}px - 16px);overflow-y:auto;touch-action:pan-y;scrollbar-width:none;-ms-overflow-style:none;`;
+    this.infoPanel.style.cssText = `position:absolute;left:calc(8px + env(safe-area-inset-left, 0px));top:50px;width:var(--sd-info-w);background:rgba(0,0,10,0.85);border:1px solid #446;border-radius:8px;padding:12px;pointer-events:auto;display:none;font-size:var(--sd-info-fs);line-height:1.5;color:#ccd;max-height:var(--sd-info-maxh);overflow-y:auto;touch-action:pan-y;scrollbar-width:none;-ms-overflow-style:none;`;
     this.container.appendChild(this.infoPanel);
 
     if (!document.getElementById('hideScrollbarStyle')) {
@@ -146,47 +136,46 @@ export class HUD {
     this.infoPanel.classList.add('hide-scrollbar');
     this.bottomBar.classList.add('hide-scrollbar');
 
+    // 터치 기기: 정보 패널 바깥을 탭하면 닫힘 (capture — 탭 자체의 동작은 그대로 진행)
+    document.addEventListener('pointerdown', this.dismissHoldInfo, true);
+
     // Synergy tooltip — toggled by clicking a badge
     this.synergyTooltip = document.createElement('div');
-    this.synergyTooltip.style.cssText = `position:fixed;top:${mob ? 38 : 44}px;left:50%;transform:translateX(-50%);background:rgba(10,5,30,0.92);border:1px solid #8866cc;border-radius:6px;padding:${mob ? '6px 10px' : '8px 14px'};font-size:${mob ? 10 : 11}px;color:#dcd;font-family:monospace;pointer-events:auto;display:none;z-index:30;max-width:${mob ? '80vw' : '320px'};line-height:1.5;white-space:pre-wrap;`;
+    this.synergyTooltip.style.cssText = `position:fixed;top:var(--sd-syn-top);left:50%;transform:translateX(-50%);background:rgba(10,5,30,0.92);border:1px solid #8866cc;border-radius:6px;padding:var(--sd-syn-pad);font-size:var(--sd-syn-fs);color:#dcd;font-family:monospace;pointer-events:auto;display:none;z-index:30;max-width:var(--sd-syn-maxw);line-height:1.5;white-space:pre-wrap;`;
     this.synergyTooltip.onclick = () => { this.selectedSynergyId = null; this.synergyTooltip.style.display = 'none'; };
     document.body.appendChild(this.synergyTooltip);
 
     // Start wave button — fixed bottom-right, above footer
     this.startWaveBtn = document.createElement('button');
-    this.startWaveBtn.style.cssText = `position:absolute;right:calc(${mob ? '8px' : '16px'} + ${safeInset('right')});bottom:calc(${mob ? '64px' : '76px'} + ${safeInset('bottom')});background:#224;color:#aaf;border:2px solid #558;padding:${mob ? '10px 16px' : '10px 20px'};cursor:pointer;font-family:monospace;font-size:${mob ? 13 : 14}px;font-weight:bold;border-radius:8px;pointer-events:auto;display:none;z-index:12;text-shadow:0 0 8px rgba(100,120,255,0.4);`;
+    this.startWaveBtn.style.cssText = `position:absolute;right:var(--sd-start-r);bottom:var(--sd-start-b);background:#224;color:#aaf;border:2px solid #558;padding:var(--sd-start-pad);cursor:pointer;font-family:monospace;font-size:var(--sd-start-fs);font-weight:bold;border-radius:8px;pointer-events:auto;display:none;z-index:12;text-shadow:0 0 8px rgba(100,120,255,0.4);`;
     this.startWaveBtn.onclick = () => this.onStartWave?.();
     this.container.appendChild(this.startWaveBtn);
 
     // Persistent spell panel (never destroyed during render)
     this.spellPanel = document.createElement('div');
     this.spellPanel.className = 'spell-panel';
-    const spellRight = mob ? `calc(8px + ${safeInset('right')})` : '12px';
-    const spellTop = `${topH + 8}px`;
-    this.spellPanel.style.cssText = `position:absolute;right:${spellRight};top:${spellTop};display:flex;flex-direction:column;gap:${mob ? '4px' : '6px'};pointer-events:auto;z-index:12;`;
+    this.spellPanel.style.cssText = `position:absolute;right:var(--sd-spell-r);top:calc(var(--sd-top-h) + 8px);display:flex;flex-direction:column;gap:var(--sd-spell-gap);pointer-events:auto;z-index:12;`;
 
-    const gaugeW = mob ? 72 : 100;
     const gaugeBar = document.createElement('div');
-    gaugeBar.style.cssText = `width:${gaugeW}px;height:${mob ? 8 : 10}px;background:#222;border:1px solid #446;border-radius:4px;overflow:hidden;margin-bottom:${mob ? 2 : 4}px;`;
+    gaugeBar.style.cssText = `width:var(--sd-spell-gauge-w);height:var(--sd-spell-gauge-h);background:#222;border:1px solid #446;border-radius:4px;overflow:hidden;margin-bottom:var(--sd-spell-gauge-mb);`;
     this.spellGaugeFill = document.createElement('div');
     this.spellGaugeFill.style.cssText = 'width:0%;height:100%;background:linear-gradient(to right, #44a, #88f);transition:width 0.2s;';
     gaugeBar.appendChild(this.spellGaugeFill);
     this.spellPanel.appendChild(gaugeBar);
 
     this.spellGaugeLabel = document.createElement('div');
-    this.spellGaugeLabel.style.cssText = `font-size:${mob ? 9 : 10}px;color:#88a;text-align:center;margin-bottom:${mob ? 2 : 4}px;`;
+    this.spellGaugeLabel.style.cssText = 'font-size:var(--sd-spell-fs);color:#88a;text-align:center;margin-bottom:var(--sd-spell-gauge-mb);';
     this.spellPanel.appendChild(this.spellGaugeLabel);
 
-    const spellBtnW = mob ? 90 : 120;
     for (const [sid, sdef] of Object.entries(SPELL_DEFS)) {
       const btn = document.createElement('button');
-      btn.style.cssText = `background:#222;color:#556;border:1px solid #334;padding:${mob ? '6px 4px' : '6px 8px'};cursor:default;font-family:monospace;font-size:${mob ? 9 : 11}px;border-radius:4px;width:${spellBtnW}px;text-align:center;min-height:${mob ? '36px' : 'auto'};`;
+      btn.style.cssText = `background:#222;color:#556;border:1px solid #334;padding:var(--sd-spell-btn-pad);cursor:default;font-family:monospace;font-size:var(--sd-spell-fs);border-radius:4px;width:var(--sd-spell-w);text-align:center;min-height:var(--sd-spell-btn-minh);`;
       const nameLine = document.createElement('div');
       nameLine.textContent = mob ? sdef.nameKo : `${sdef.nameKo} [${sdef.gaugeCost}]`;
       btn.appendChild(nameLine);
       const descLine = document.createElement('div');
       descLine.textContent = sdef.description;
-      descLine.style.cssText = `font-size:${mob ? 7 : 9}px;color:#667;margin-top:2px;`;
+      descLine.style.cssText = `font-size:var(--sd-spell-desc-fs);color:#667;margin-top:2px;`;
       btn.appendChild(descLine);
       this.spellPanel.appendChild(btn);
       this.spellButtons.set(sid, btn);
@@ -195,13 +184,12 @@ export class HUD {
 
     // Mutation display panel (heat death mode)
     this.mutationPanel = document.createElement('div');
-    const mutRight = mob ? `calc(8px + ${safeInset('right')})` : '12px';
-    this.mutationPanel.style.cssText = `position:absolute;right:${mutRight};top:${mob ? '140px' : '200px'};display:none;flex-direction:column;gap:3px;pointer-events:none;max-width:${mob ? '80px' : '120px'};`;
+    this.mutationPanel.style.cssText = `position:absolute;right:var(--sd-mut-r);top:var(--sd-mut-top);display:none;flex-direction:column;gap:3px;pointer-events:none;max-width:var(--sd-mut-maxw);`;
     this.container.appendChild(this.mutationPanel);
 
     // Crisis warning banner (heat death mode)
     this.crisisBanner = document.createElement('div');
-    this.crisisBanner.style.cssText = `position:absolute;top:${mob ? '36px' : '40px'};left:50%;transform:translateX(-50%);background:rgba(80,0,0,0.85);border:1px solid #f44;padding:${mob ? '4px 12px' : '6px 16px'};border-radius:6px;font-size:${mob ? 11 : 13}px;color:#f88;text-align:center;pointer-events:none;display:none;white-space:nowrap;text-shadow:0 0 8px rgba(255,60,60,0.4);`;
+    this.crisisBanner.style.cssText = `position:absolute;top:var(--sd-crisis-top);left:50%;transform:translateX(-50%);background:rgba(80,0,0,0.85);border:1px solid #f44;padding:var(--sd-crisis-pad);border-radius:6px;font-size:var(--sd-crisis-fs);color:#f88;text-align:center;pointer-events:none;display:none;white-space:nowrap;text-shadow:0 0 8px rgba(255,60,60,0.4);`;
     this.container.appendChild(this.crisisBanner);
 
     // Re-render on orientation / resize changes
@@ -216,43 +204,25 @@ export class HUD {
 
   render() {
     const state = this.store.getState();
-    const mob = isMobileLandscape();
-    const topH = getTopBarHeight();
 
-    // Update layout dimensions on render (handles orientation change)
-    this.topBar.style.height = `${topH}px`;
-    this.topBar.style.fontSize = mob ? '12px' : '14px';
-    this.bottomBar.style.gap = mob ? '4px' : '8px';
-    this.bottomBar.style.padding = `${mob ? '6px' : '8px'} ${mob ? '6px' : '16px'}`;
-    this.bottomBar.style.paddingLeft = `calc(${mob ? '6px' : '16px'} + ${safeInset('left')})`;
-    this.bottomBar.style.paddingRight = `calc(${mob ? '6px' : '16px'} + ${safeInset('right')})`;
-    this.bottomBar.style.paddingBottom = `calc(${mob ? '6px' : '8px'} + ${safeInset('bottom')})`;
-    this.startWaveBtn.style.right = `calc(${mob ? '8px' : '16px'} + ${safeInset('right')})`;
-    this.startWaveBtn.style.bottom = `calc(${mob ? '64px' : '76px'} + ${safeInset('bottom')})`;
-    this.spellPanel.style.right = mob ? `calc(8px + ${safeInset('right')})` : '12px';
-    this.spellPanel.style.top = `${topH + 8}px`;
-    this.mutationPanel.style.right = mob ? `calc(8px + ${safeInset('right')})` : '12px';
-    this.mutationPanel.style.top = mob ? '140px' : '200px';
-    this.infoPanel.style.maxHeight = `calc(100dvh - 50px - ${mob ? 58 : 72}px - 16px)`;
-
-    this.updateTopBar(state, mob);
+    this.updateTopBar(state);
     this.updateSpellPanel(state);
-    this.updateInfoPanel(mob);
-    this.renderBottomBar(state, mob);
-    this.updateMutationPanel(mob);
+    this.updateInfoPanel();
+    this.renderBottomBar(state);
+    this.updateMutationPanel();
     this.updateCrisisBanner();
   }
 
   /** Lightweight HUD refresh during wave — skips bottom palette rebuild */
   updateChrome() {
     const state = this.store.getState();
-    const mob = isMobileLandscape();
-    this.updateTopBar(state, mob);
+    this.updateTopBar(state);
     this.updateSpellPanel(state);
-    this.updateStartWaveBtn(state, mob);
+    this.updateStartWaveBtn(state);
   }
 
-  private updateTopBar(state: ReturnType<GameStore['getState']>, mob: boolean) {
+  private updateTopBar(state: ReturnType<GameStore['getState']>) {
+    const mob = displayMode.isMobile;
     if (this.isHeatDeath) {
       if (mob) {
         this.infoEl.innerHTML = `W${state.currentWave} ISM:${state.ism} HP:${state.baseHp}`;
@@ -297,11 +267,12 @@ export class HUD {
       this.wavePreview.style.display = 'none';
     }
 
-    this.updateSynergyBadges(mob);
-    this.updateStartWaveBtn(state, mob);
+    this.updateSynergyBadges();
+    this.updateStartWaveBtn(state);
   }
 
-  private updateSynergyBadges(mob: boolean) {
+  private updateSynergyBadges() {
+    const mob = displayMode.isMobile;
     const synergySource = this.activeSynergyData.length > 0 ? this.activeSynergyData : null;
     const synergyKey = synergySource
       ? `${this.selectedSynergyId ?? ''}|${synergySource.map(s => `${s.id}:${s.isNew ? 1 : 0}`).join(',')}`
@@ -323,7 +294,7 @@ export class HUD {
           const bg = selected ? 'rgba(140,120,255,0.7)' : isNew ? 'rgba(60,200,120,0.5)' : 'rgba(100,80,200,0.4)';
           const fg = selected ? '#fff' : isNew ? '#8f6' : '#c8b4ff';
           const border = selected ? '#aaf' : isNew ? '#4a4' : '#8866cc';
-          badge.style.cssText = `font-size:${mob ? 8 : 9}px;background:${bg};color:${fg};border:1px solid ${border};border-radius:3px;padding:1px 4px;white-space:nowrap;cursor:pointer;flex-shrink:0;`;
+          badge.style.cssText = `font-size:var(--sd-syn-fs);background:${bg};color:${fg};border:1px solid ${border};border-radius:3px;padding:1px 4px;white-space:nowrap;cursor:pointer;flex-shrink:0;`;
           badge.onclick = (e) => {
             e.stopPropagation();
             if (this.selectedSynergyId === syn.id) {
@@ -335,7 +306,7 @@ export class HUD {
               this.synergyTooltip.style.display = 'block';
             }
             this._lastSynergyKey = '';
-            this.updateSynergyBadges(mob);
+            this.updateSynergyBadges();
           };
           this.topBarCenter.appendChild(badge);
         }
@@ -349,11 +320,12 @@ export class HUD {
       this.selectedSynergyId = null;
       this.synergyTooltip.style.display = 'none';
       this._lastSynergyKey = '';
-      this.updateSynergyBadges(mob);
+      this.updateSynergyBadges();
     }
   }
 
-  private updateStartWaveBtn(state: ReturnType<GameStore['getState']>, mob: boolean) {
+  private updateStartWaveBtn(state: ReturnType<GameStore['getState']>) {
+    const mob = displayMode.isMobile;
     if (state.phase === 'build') {
       this.startWaveBtn.textContent = mob ? `WAVE ${state.currentWave + 1} ▶` : `START WAVE ${state.currentWave + 1}`;
       this.startWaveBtn.style.display = 'block';
@@ -362,8 +334,10 @@ export class HUD {
     }
   }
 
-  private renderBottomBar(state: ReturnType<GameStore['getState']>, mob: boolean) {
+  private renderBottomBar(state: ReturnType<GameStore['getState']>) {
+    const mob = displayMode.isMobile;
     const bottomKey = [
+      displayMode.mode,
       state.phase,
       state.availableTowers.join(','),
       this.availableNebulae.join(','),
@@ -375,9 +349,7 @@ export class HUD {
 
     this.bottomBar.innerHTML = '';
 
-    const palettePad = mob ? '8px 8px' : '6px 12px';
-    const paletteFontSize = mob ? 11 : 12;
-    const paletteMinH = mob ? 'min-height:44px;' : '';
+    const paletteMinH = mob ? 'min-height:44px;' : '';  // touch target size — keep as JS
 
     // Tower palette
     for (const tid of state.availableTowers) {
@@ -386,13 +358,14 @@ export class HUD {
       const btn = document.createElement('button');
       const selected = this.selectedTowerId === tid;
       btn.textContent = mob ? `${def.nameKo}(${def.cost})` : `${def.nameKo} (${def.cost})`;
-      btn.style.cssText = `background:${selected ? '#446' : '#223'};color:#ddf;border:1px solid ${selected ? '#88a' : '#445'};padding:${palettePad};cursor:pointer;font-family:monospace;font-size:${paletteFontSize}px;border-radius:4px;white-space:nowrap;flex-shrink:0;${paletteMinH}`;
+      btn.style.cssText = `background:${selected ? '#446' : '#223'};color:#ddf;border:1px solid ${selected ? '#88a' : '#445'};padding:var(--sd-bot-btn-pad);cursor:pointer;font-family:monospace;font-size:var(--sd-bot-btn-fs);border-radius:4px;white-space:nowrap;flex-shrink:0;${paletteMinH}`;
       btn.onclick = () => {
         this.selectedNebulaId = null;
         this.selectedTowerId = this.selectedTowerId === tid ? null : tid;
         this.onTowerSelected?.(this.selectedTowerId);
         this.render();
       };
+      if (displayMode.isTouch) this.bindHoldToInspect(btn, 'tower', tid);
       this.bottomBar.appendChild(btn);
     }
 
@@ -411,15 +384,59 @@ export class HUD {
       const btn = document.createElement('button');
       const selected = this.selectedNebulaId === nid;
       btn.textContent = mob ? `${def.nameKo}(${def.cost})` : `${def.nameKo} (${def.cost})`;
-      btn.style.cssText = `background:${selected ? '#243' : '#1a2a1a'};color:#aec;border:1px solid ${selected ? '#4a6' : '#354'};padding:${palettePad};cursor:pointer;font-family:monospace;font-size:${paletteFontSize}px;border-radius:4px;white-space:nowrap;flex-shrink:0;${paletteMinH}`;
+      btn.style.cssText = `background:${selected ? '#243' : '#1a2a1a'};color:#aec;border:1px solid ${selected ? '#4a6' : '#354'};padding:var(--sd-bot-btn-pad);cursor:pointer;font-family:monospace;font-size:var(--sd-bot-btn-fs);border-radius:4px;white-space:nowrap;flex-shrink:0;${paletteMinH}`;
       btn.onclick = () => {
         this.selectedTowerId = null;
         this.selectedNebulaId = this.selectedNebulaId === nid ? null : nid;
         this.onNebulaSelected?.(this.selectedNebulaId);
         this.render();
       };
+      if (displayMode.isTouch) this.bindHoldToInspect(btn, 'nebula', nid);
       this.bottomBar.appendChild(btn);
     }
+  }
+
+  /** 터치 기기: 팔레트 버튼을 ~400ms 홀드하면 정보 패널 표시. 홀드 후 딸려오는 click(선택 토글)은 무시 */
+  private bindHoldToInspect(btn: HTMLButtonElement, kind: 'tower' | 'nebula', id: string) {
+    btn.style.userSelect = 'none';
+    (btn.style as any).webkitUserSelect = 'none';
+    (btn.style as any).webkitTouchCallout = 'none';
+    btn.oncontextmenu = (e) => e.preventDefault();
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let startX = 0;
+    let startY = 0;
+    let held = false;
+
+    const cancel = () => {
+      if (timer) { clearTimeout(timer); timer = null; }
+    };
+
+    btn.onpointerdown = (e) => {
+      held = false;
+      startX = e.clientX;
+      startY = e.clientY;
+      cancel();
+      timer = setTimeout(() => {
+        timer = null;
+        held = true;
+        this.holdInfoKey = { kind, id };
+        this.updateInfoPanel();
+      }, 400);
+    };
+    btn.onpointermove = (e) => {
+      if (timer && (Math.abs(e.clientX - startX) > 10 || Math.abs(e.clientY - startY) > 10)) cancel();
+    };
+    btn.onpointerup = cancel;
+    btn.onpointercancel = cancel;
+    btn.onpointerleave = cancel;
+
+    // 홀드가 발동됐으면 뒤따르는 click(선택 토글)을 무시
+    const prevClick = btn.onclick;
+    btn.onclick = (e) => {
+      if (held) { held = false; return; }
+      prevClick?.call(btn, e);
+    };
   }
 
   showTutorial(text: string) {
@@ -432,7 +449,7 @@ export class HUD {
   }
 
   private updateSpellPanel(state: ReturnType<GameStore['getState']>) {
-    const mob = isMobileLandscape();
+    const mob = displayMode.isMobile;
     this.spellGaugeFill.style.width = `${state.spellGauge}%`;
     this.spellGaugeLabel.textContent = mob ? `${Math.floor(state.spellGauge)}%` : `GAUGE ${Math.floor(state.spellGauge)}/100`;
 
@@ -454,8 +471,18 @@ export class HUD {
 
   private _lastInfoKey: string | null = null;
 
-  private updateInfoPanel(mob: boolean) {
-    const infoKey = this.selectedTowerId ?? this.selectedNebulaId ?? null;
+  private updateInfoPanel() {
+    const mob = displayMode.isMobile;
+    // 터치 기기(모바일+태블릿): 선택과 무관하게 홀드로 열람 중인 대상만 표시 (화면 가림 최소화)
+    const touch = displayMode.isTouch;
+    const towerId = touch
+      ? (this.holdInfoKey?.kind === 'tower' ? this.holdInfoKey.id : null)
+      : this.selectedTowerId;
+    const nebulaId = touch
+      ? (this.holdInfoKey?.kind === 'nebula' ? this.holdInfoKey.id : null)
+      : this.selectedNebulaId;
+    // 모드가 바뀌면 JS 보간 폰트 크기 등이 달라지므로 캐시 키에 모드 포함
+    const infoKey = (towerId ?? nebulaId) ? `${displayMode.mode}|${towerId ?? nebulaId}` : null;
     if (!infoKey) {
       if (this._lastInfoKey !== null) {
         disposeNebulaPreview();
@@ -471,14 +498,13 @@ export class HUD {
     disposeNebulaPreview();
     this.infoPanel.style.visibility = 'hidden';
     this.infoPanel.style.display = 'block';
-    this.infoPanel.style.width = mob ? '148px' : '196px';
     this.infoPanel.innerHTML = '';
 
-    const fs = mob ? 10 : 11;
+    const fs = mob ? 10 : 11;     // used in JS string interpolation for DOM creation
     const fsSmall = mob ? 8 : 9;
 
-    if (this.selectedTowerId) {
-      const def = TOWER_DEFS[this.selectedTowerId];
+    if (towerId) {
+      const def = TOWER_DEFS[towerId];
       if (!def) return;
 
       // Name
@@ -496,7 +522,7 @@ export class HUD {
       specChip.textContent = def.spectralType;
       metaRow.appendChild(specChip);
 
-      const role = getTowerRoleTag(this.selectedTowerId, def);
+      const role = getTowerRoleTag(towerId, def);
       if (role) {
         const rs = getRoleTagStyle(role.category);
         const rolePill = document.createElement('span');
@@ -577,7 +603,7 @@ export class HUD {
       }
 
       // Evolution tree with actual costs
-      const evo = getEvolutions(this.selectedTowerId);
+      const evo = getEvolutions(towerId);
       if (evo) {
         const evoDiv = document.createElement('div');
         evoDiv.style.cssText = `font-size:${fsSmall}px;color:#8af;margin-top:6px;border-top:1px solid #335;padding-top:4px;line-height:1.6;`;
@@ -589,8 +615,8 @@ export class HUD {
         evoDiv.innerHTML = evoHtml;
         this.infoPanel.appendChild(evoDiv);
       }
-    } else if (this.selectedNebulaId) {
-      const def = NEBULA_DEFS[this.selectedNebulaId];
+    } else if (nebulaId) {
+      const def = NEBULA_DEFS[nebulaId];
       if (!def) return;
 
       // Name + messier type
@@ -674,7 +700,8 @@ export class HUD {
     this.infoPanel.style.visibility = 'visible';
   }
 
-  private updateMutationPanel(mob: boolean) {
+  private updateMutationPanel() {
+    const mob = displayMode.isMobile;
     if (!this.isHeatDeath || this.activeMutationNames.length === 0) {
       this.mutationPanel.style.display = 'none';
       return;
@@ -714,7 +741,7 @@ export class HUD {
   }
 
   showHeatDeathEndScreen(wave: number, kills: number, mutations: string[], bestWave: number, isNewBest: boolean) {
-    const mob = isMobileLandscape();
+    const mob = displayMode.isMobile;
     this.endScreen.style.display = 'flex';
     this.endScreen.innerHTML = '';
 
@@ -762,7 +789,7 @@ export class HUD {
   }
 
   showEndScreen(victory: boolean, _mapId?: string) {
-    const mob = isMobileLandscape();
+    const mob = displayMode.isMobile;
     this.endScreen.style.display = 'flex';
     this.endScreen.innerHTML = '';
 
@@ -849,7 +876,9 @@ export class HUD {
   }
 
   dispose() {
+    document.removeEventListener('pointerdown', this.dismissHoldInfo, true);
     disposeNebulaPreview();
+    this.synergyTooltip.remove();
     this.container.remove();
   }
 }

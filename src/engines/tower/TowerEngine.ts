@@ -356,26 +356,8 @@ export class TowerEngine {
 
     for (const proj of this.projectiles) {
       if (!proj.alive) continue;
-      // Piercing projectile lost its target — retarget or die
-      if (proj.piercing && !proj.target.alive) {
-        let newTarget: EnemyEntity | null = null;
-        let minD = Infinity;
-        for (const e of enemies) {
-          if (!e.alive) continue;
-          const dx = e.position.x - proj.mesh.position.x;
-          const dz = e.position.z - proj.mesh.position.z;
-          const d = dx * dx + dz * dz;
-          if (d < minD) { minD = d; newTarget = e; }
-        }
-        if (newTarget && minD < 25) {
-          proj.target = newTarget;
-        } else {
-          proj.alive = false;
-          proj.dispose();
-          continue;
-        }
-      }
-      const hit = proj.fixedUpdate(dt);
+      // 관통탄의 직선 비행 충돌 판정은 Projectile 내부에서 처리 (적마다 1회, 최대 3기)
+      const hit = proj.fixedUpdate(dt, enemies);
       if (hit) {
         this.onEnemyHit?.(proj.target, proj.damage);
         if (proj.splashRadius > 0) {
@@ -467,6 +449,7 @@ export class TowerEngine {
     const idx = this.towers.indexOf(tower);
     if (idx === -1) return;
     this.mapEngine.markBuildable(tower.row, tower.col);
+    this.specialTimers.delete(tower);
     tower.dispose();
     this.towers.splice(idx, 1);
     this._synergyDirty = true;
@@ -477,6 +460,7 @@ export class TowerEngine {
     if (idx === -1) return 0;
     const refund = tower.sellValue;
     this.mapEngine.markBuildable(tower.row, tower.col);
+    this.specialTimers.delete(tower);
     tower.dispose();
     this.towers.splice(idx, 1);
     return refund;

@@ -54,9 +54,19 @@ export class Projectile {
   damage: number;
   speed: number;
   splashRadius = 0;
+  /** 오리온 벨트 관통탄: 첫 명중 후 직선 비행하며 추가 관통 */
   piercing = false;
   alive = true;
   private hitTargets = new Set<EnemyEntity>();
+  /** 관통 모드 진입 후 직선 비행 방향 (진입 전 null = 유도 비행) */
+  private lineDir: BABYLON.Vector3 | null = null;
+  private lineTravel = 0;
+  /** 첫 명중 후 직선 비행 한도 (타일) */
+  private readonly maxLineTravel = 4;
+  /** 총 타격 가능 수 — 삼태성 고증 (첫 타겟 + 관통 2기) */
+  private readonly maxPierceTargets = 3;
+  /** 관통 1회당 데미지 감쇠 */
+  private readonly pierceFalloff = 0.7;
   private prevPos: BABYLON.Vector3;
   private nextPos: BABYLON.Vector3;
   private shaderMat: BABYLON.ShaderMaterial;
@@ -122,11 +132,16 @@ export class Projectile {
     this.shaderMat.setFloat('uTime', this.timeAccum);
   }
 
-  fixedUpdate(dt: number): boolean {
+  /**
+   * @returns true = 이번 틱에 명중 (TowerEngine이 proj.target에 데미지 적용)
+   * @param enemies 관통 모드 직선 비행 중 충돌 판정 대상 (관통탄에만 필요)
+   */
+  fixedUpdate(dt: number, enemies?: readonly EnemyEntity[]): boolean {
     if (!this.alive) return false;
 
-    if (!this.target.alive) {
-      if (!this.piercing) {
+    // 관통탄: 첫 명중 전에 타겟이 죽으면 그 방향 그대로 직선 전환
+    if (!this.target.alive && !this.lineDir) {
+      if (!this.piercing || !this.enterLineMode()) {
         this.alive = false;
         this.disposeAll();
         return false;
@@ -143,14 +158,61 @@ export class Projectile {
       this.trailPositions[0].copyFrom(this.mesh.position);
     }
 
+    const step = this.speed * dt;
+
+    // ── 관통 모드: 직선 비행, 경로상의 적을 각 1회씩 타격 ──
+    if (this.lineDir) {
+      this.mesh.position.x += this.lineDir.x * step;
+      this.mesh.position.z += this.lineDir.z * step;
+      this.lineTravel += step;
+
+      for (let i = 0; i < this.trail.length; i++) {
+        this.trail[i].position.copyFrom(this.trailPositions[i]);
+      }
+      this.nextPos.copyFrom(this.mesh.position);
+
+      if (enemies) {
+        for (const e of enemies) {
+          if (!e.alive || this.hitTargets.has(e)) continue;
+          const dx = e.position.x - this.mesh.position.x;
+          const dz = e.position.z - this.mesh.position.z;
+          const r = e.def.radius + 0.09;
+          if (dx * dx + dz * dz <= r * r) {
+            // 관통 타격 (첫 명중 이후)은 감쇠 적용
+            if (this.hitTargets.size > 0) {
+              this.damage = Math.max(1, Math.round(this.damage * this.pierceFalloff));
+            }
+            this.hitTargets.add(e);
+            this.target = e;
+            if (this.hitTargets.size >= this.maxPierceTargets) {
+              this.alive = false;
+              this.disposeAll();
+            }
+            return true;
+          }
+        }
+      }
+
+      if (this.lineTravel >= this.maxLineTravel) {
+        this.alive = false;
+        this.disposeAll();
+      }
+      return false;
+    }
+
+    // ── 유도 모드 ──
     const dir = this.target.position.subtract(this.mesh.position);
     dir.y = 0;
     const dist = dir.length();
-    const step = this.speed * dt;
 
     if (dist <= step + this.target.def.radius) {
       if (this.piercing) {
+        // 첫 명중: 이후 유도 종료, 진행 방향 직선 관통 비행
         this.hitTargets.add(this.target);
+        if (!this.enterLineMode()) {
+          this.alive = false;
+          this.disposeAll();
+        }
         return true;
       }
       this.alive = false;
@@ -169,6 +231,16 @@ export class Projectile {
 
     this.nextPos.copyFrom(this.mesh.position);
     return false;
+  }
+
+  /** 현재 타겟 방향으로 직선 비행 전환. 방향 산출 불가 시 false */
+  private enterLineMode(): boolean {
+    const dir = this.target.position.subtract(this.mesh.position);
+    dir.y = 0;
+    if (dir.lengthSquared() < 1e-8) return false;
+    dir.normalize();
+    this.lineDir = dir;
+    return true;
   }
 
   interpolate(alpha: number) {
