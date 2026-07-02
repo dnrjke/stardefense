@@ -85,7 +85,7 @@ export const MUTATION_DEFS: Record<string, MutationDef> = {
   supernova_afterglow: {
     id: 'supernova_afterglow',
     nameKo: '초신성 잔광',
-    description: '베텔게우스 폭발 피해 2배, 타이머 3초로 단축',
+    description: '베텔게우스 초신성 피해 2배, 폭발까지 3웨이브로 단축',
     category: 'mixed',
     betelgeuseExplosionMult: 2,
     betelgeuseTimerOverride: 3,
@@ -156,6 +156,8 @@ export interface MutationModifiers {
   stealthFreqMult: number;
   critChance: number;
   critMultiplier: number;
+  betelgeuseExplosionMult: number;
+  betelgeuseTimerOverride?: number;
 }
 
 export function computeMutationModifiers(activeMutations: string[]): MutationModifiers {
@@ -175,6 +177,7 @@ export function computeMutationModifiers(activeMutations: string[]): MutationMod
     stealthFreqMult: 1,
     critChance: 0,
     critMultiplier: 1,
+    betelgeuseExplosionMult: 1,
   };
 
   for (const id of activeMutations) {
@@ -193,6 +196,10 @@ export function computeMutationModifiers(activeMutations: string[]): MutationMod
     if (def.spellGaugeMult != null) mods.spellGaugeMult *= def.spellGaugeMult;
     if (def.towerCostMult != null) mods.towerCostMult *= def.towerCostMult;
     if (def.stealthFreqMult != null) mods.stealthFreqMult *= def.stealthFreqMult;
+    if (def.betelgeuseExplosionMult != null) mods.betelgeuseExplosionMult *= def.betelgeuseExplosionMult;
+    if (def.betelgeuseTimerOverride != null) {
+      mods.betelgeuseTimerOverride = Math.min(mods.betelgeuseTimerOverride ?? Infinity, def.betelgeuseTimerOverride);
+    }
     if (def.critChance != null) mods.critChance += def.critChance;
     if (def.critMultiplier != null && def.critMultiplier > mods.critMultiplier) {
       mods.critMultiplier = def.critMultiplier;

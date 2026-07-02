@@ -11,6 +11,10 @@ export interface TowerDef {
   projectileSpeed: number;
   specialType?: 'betelgeuse' | 'supernova_remnant' | 'planetary_nebula' | 'black_hole' | 'pulsar' | 'magnetar' | 'flare_star' | 'binary_system' | 'a_supergiant' | 'pulsating_variable' | 'sgr_repeater';
   wavesUntilExplosion?: number;
+  explosionRadius?: number;      // supernova blast radius in tiles (betelgeuse line)
+  explosionDamageMult?: number;  // blast damage = damage × mult, so damage buffs scale the blast
+  remnantDamage?: number;        // DoT dps of the supernova remnant left at the blast site
+  remnantRange?: number;         // radius of that remnant zone
   noAttack?: boolean;
   armorDebuff?: number;
   pulsarInterval?: number;
@@ -86,7 +90,11 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     projectileSpeed: 8,
     specialType: 'betelgeuse',
     wavesUntilExplosion: 5,
-    descriptionKo: '2,000년 전에는 노란 별이었다. 지금은 초신성 전야를 사는 적색초거성 — 마지막 빛은 가장 눈부시다.',
+    explosionRadius: 3,
+    explosionDamageMult: 12.5,
+    remnantDamage: 3,
+    remnantRange: 1.5,
+    descriptionKo: '2,000년 전에는 노란 별이었다. 초신성 전야를 사는 적색초거성 — 폭발은 끝이 아니라, 잔해 성운으로 이어지는 순환의 시작이다.',
   },
   red_giant: {
     id: 'red_giant',
@@ -144,6 +152,22 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     noAttack: true,
     armorDebuff: 5,
     descriptionKo: '별의 마지막 숨결이 빚은 빛의 고리. 50억 년 뒤 태양의 운명을 예고한다.',
+  },
+  ohir_star: {
+    id: 'ohir_star',
+    name: 'OH/IR Star',
+    nameKo: 'OH/IR 성',
+    spectralType: 'M5Ia OH/IR',
+    ci: 2.2,
+    damage: 0,
+    attackRate: 0,
+    range: 3.0,
+    cost: 80,
+    projectileSpeed: 0,
+    specialType: 'planetary_nebula',
+    noAttack: true,
+    armorDebuff: 5,
+    descriptionKo: '두꺼운 먼지 고치에 스스로를 파묻은 극대거성. 항성풍이 흩뿌린 먼지가 적의 장갑을 삭인다.',
   },
   black_hole: {
     id: 'black_hole',
@@ -272,7 +296,9 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     spectralType: 'M0Ia', ci: 1.7, damage: 0, attackRate: 0, range: 0,
     cost: 80, projectileSpeed: 8,
     specialType: 'betelgeuse', wavesUntilExplosion: 3,
-    descriptionKo: '핵의 규소 연소가 시작되었다. 폭발이 임박했으며, 더 강력해졌다.',
+    explosionRadius: 4, explosionDamageMult: 12.5,
+    remnantDamage: 5, remnantRange: 2.5,
+    descriptionKo: '핵의 규소 연소가 시작되었다. 폭발이 임박했으며, 더 크게 터지고 더 짙은 잔해를 남긴다.',
   },
   pulsating_variable: {
     id: 'pulsating_variable', name: 'Pulsating Variable', nameKo: '맥동 변광성',

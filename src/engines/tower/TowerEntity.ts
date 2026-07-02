@@ -92,7 +92,8 @@ void main() {
     // ── NdotV limb darkening (CoreStarShader DNA) ──
     vec3  N     = normalize(vWorldNorm);
     vec3  V     = normalize(vViewDir);
-    float NdotV = max(dot(N, V), 0.0);
+    // 상한 클램프 필수: 정규화 오차로 dot>1이면 pow(1.0-NdotV, k)가 NaN → 모바일 GPU에서 흰색 픽셀
+    float NdotV = clamp(dot(N, V), 0.0, 1.0);
     float limb  = mix(0.45, 1.0, NdotV);
 
     // ── Fresnel rim glow ──
@@ -227,10 +228,11 @@ export class TowerEntity {
     return this.def.cost;
   }
 
-  onWaveCompleted() {
+  onWaveCompleted(wavesOverride?: number) {
     if (this.def.specialType !== 'betelgeuse') return;
     this.wavesAlive++;
-    if (this.def.wavesUntilExplosion && this.wavesAlive >= this.def.wavesUntilExplosion) {
+    const fuse = wavesOverride ?? this.def.wavesUntilExplosion;
+    if (fuse && this.wavesAlive >= fuse) {
       this.readyToExplode = true;
     }
   }

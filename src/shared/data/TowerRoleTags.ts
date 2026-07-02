@@ -34,7 +34,7 @@ export const TOWER_ROLE_TAGS: Record<string, TowerRoleTag> = {
   proxima: { label: '속사', category: 'rapid' },
   sirius: { label: '메인 딜러', category: 'balance' },
   rigel: { label: '스나이퍼', category: 'sniper' },
-  betelgeuse: { label: '시한폭탄', category: 'burst' },
+  betelgeuse: { label: '초신성 순환', category: 'burst' },
   wolf_rayet: { label: '스플래시', category: 'splash' },
   magnetar: { label: '스텔스 감지', category: 'utility' },
 
@@ -55,7 +55,7 @@ export const TOWER_ROLE_TAGS: Record<string, TowerRoleTag> = {
   red_supergiant: { label: '스플래시', category: 'splash' },
 
   // Betelgeuse Lv2
-  pre_supernova: { label: '강화 시한폭탄', category: 'burst' },
+  pre_supernova: { label: '임박 초신성', category: 'burst' },
   pulsating_variable: { label: '범위 펄스', category: 'splash' },
 
   // Wolf-Rayet Lv2
@@ -69,6 +69,7 @@ export const TOWER_ROLE_TAGS: Record<string, TowerRoleTag> = {
   // Lv3 / final
   supernova_remnant: { label: 'DoT 장판', category: 'trap' },
   planetary_nebula: { label: '디버프 오라', category: 'support' },
+  ohir_star: { label: '먼지 디버프', category: 'support' },
   black_hole: { label: '즉사 존', category: 'trap' },
   pulsar: { label: '넉백·기절', category: 'utility' },
 
@@ -78,7 +79,7 @@ export const TOWER_ROLE_TAGS: Record<string, TowerRoleTag> = {
 };
 
 const SPECIAL_TYPE_FALLBACK: Record<string, TowerRoleTag> = {
-  betelgeuse: { label: '시한폭탄', category: 'burst' },
+  betelgeuse: { label: '초신성 순환', category: 'burst' },
   magnetar: { label: '스텔스 감지', category: 'utility' },
   flare_star: { label: '속사·범위', category: 'rapid' },
   binary_system: { label: '2연발', category: 'rapid' },

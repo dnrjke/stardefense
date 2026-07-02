@@ -392,32 +392,11 @@ export class TowerEngine {
       const pos = tower.mesh.position.clone();
       const def = TOWER_DEFS[evolutionId];
       this.removeTowerInternal(tower);
-      const remnantMesh = BABYLON.MeshBuilder.CreateDisc(`nebula_remnant_${pos.x}_${pos.z}`, {
-        radius: def.range,
-        tessellation: 32,
-      }, this.scene);
-      remnantMesh.rotation.x = Math.PI / 2;
-      remnantMesh.position.copyFrom(pos);
-      remnantMesh.position.y = 0.01;
-      const mat = new BABYLON.StandardMaterial(`nebulaMat_${pos.x}_${pos.z}`, this.scene);
-      mat.diffuseColor = new BABYLON.Color3(0.8, 0.3, 0.1);
-      mat.emissiveColor = new BABYLON.Color3(0.4, 0.15, 0.05);
-      mat.alpha = 0.4;
-      mat.specularColor = BABYLON.Color3.Black();
-      remnantMesh.material = mat;
-      remnantMesh.isPickable = false;
-      this.nebulaRemnants.push({
-        position: pos,
-        damage: def.damage,
-        range: def.range,
-        rangeSq: def.range * def.range,
-        mesh: remnantMesh,
-        mat,
-      });
+      this.spawnRemnant(pos, def.damage, def.range);
       return true;
     }
 
-    if (evolutionId === 'planetary_nebula') {
+    if (evolutionId === 'planetary_nebula' || evolutionId === 'ohir_star') {
       const pos = tower.mesh.position.clone();
       const def = TOWER_DEFS[evolutionId];
       const newDef = computeEvolvedDef(tower.def, evolutionId);
@@ -443,6 +422,32 @@ export class TowerEngine {
 
   removeTower(tower: TowerEntity) {
     this.removeTowerInternal(tower);
+  }
+
+  /** Leave a persistent DoT zone (supernova remnant nebula) at the given position */
+  spawnRemnant(pos: BABYLON.Vector3, damage: number, range: number) {
+    const remnantMesh = BABYLON.MeshBuilder.CreateDisc(`nebula_remnant_${pos.x}_${pos.z}`, {
+      radius: range,
+      tessellation: 32,
+    }, this.scene);
+    remnantMesh.rotation.x = Math.PI / 2;
+    remnantMesh.position.copyFrom(pos);
+    remnantMesh.position.y = 0.01;
+    const mat = new BABYLON.StandardMaterial(`nebulaMat_${pos.x}_${pos.z}`, this.scene);
+    mat.diffuseColor = new BABYLON.Color3(0.8, 0.3, 0.1);
+    mat.emissiveColor = new BABYLON.Color3(0.4, 0.15, 0.05);
+    mat.alpha = 0.4;
+    mat.specularColor = BABYLON.Color3.Black();
+    remnantMesh.material = mat;
+    remnantMesh.isPickable = false;
+    this.nebulaRemnants.push({
+      position: pos,
+      damage,
+      range,
+      rangeSq: range * range,
+      mesh: remnantMesh,
+      mat,
+    });
   }
 
   private removeTowerInternal(tower: TowerEntity) {

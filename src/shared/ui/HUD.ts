@@ -70,7 +70,9 @@ export class HUD {
     const mob = displayMode.isMobile;
 
     this.container = document.createElement('div');
-    this.container.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;font-family:monospace;color:#fff;';
+    // Safe-area 컨테이너: 노치/상태바/홈 인디케이터 안쪽에만 인터랙티브 UI 배치.
+    // 캔버스는 edge-to-edge 유지, absolute라 iOS standalone body 확장 시에도 실제 화면 하단까지 도달.
+    this.container.style.cssText = 'position:absolute;top:var(--sd-safe-t, 0px);left:var(--sd-safe-l, 0px);right:var(--sd-safe-r, 0px);bottom:var(--sd-safe-b, 0px);pointer-events:none;z-index:10;font-family:monospace;color:#fff;';
     document.body.appendChild(this.container);
 
     // Wave preview — inline in top bar center
@@ -124,7 +126,7 @@ export class HUD {
 
     // Left info panel — shows tower/nebula details when selected
     this.infoPanel = document.createElement('div');
-    this.infoPanel.style.cssText = `position:absolute;left:calc(8px + env(safe-area-inset-left, 0px));top:50px;width:var(--sd-info-w);background:rgba(0,0,10,0.85);border:1px solid #446;border-radius:8px;padding:12px;pointer-events:auto;display:none;font-size:var(--sd-info-fs);line-height:1.5;color:#ccd;max-height:var(--sd-info-maxh);overflow-y:auto;touch-action:pan-y;scrollbar-width:none;-ms-overflow-style:none;`;
+    this.infoPanel.style.cssText = `position:absolute;left:8px;top:50px;width:var(--sd-info-w);background:rgba(0,0,10,0.85);border:1px solid #446;border-radius:8px;padding:12px;pointer-events:auto;display:none;font-size:var(--sd-info-fs);line-height:1.5;color:#ccd;max-height:var(--sd-info-maxh);overflow-y:auto;touch-action:pan-y;scrollbar-width:none;-ms-overflow-style:none;`;
     this.container.appendChild(this.infoPanel);
 
     if (!document.getElementById('hideScrollbarStyle')) {
@@ -141,7 +143,7 @@ export class HUD {
 
     // Synergy tooltip — toggled by clicking a badge
     this.synergyTooltip = document.createElement('div');
-    this.synergyTooltip.style.cssText = `position:fixed;top:var(--sd-syn-top);left:50%;transform:translateX(-50%);background:rgba(10,5,30,0.92);border:1px solid #8866cc;border-radius:6px;padding:var(--sd-syn-pad);font-size:var(--sd-syn-fs);color:#dcd;font-family:monospace;pointer-events:auto;display:none;z-index:30;max-width:var(--sd-syn-maxw);line-height:1.5;white-space:pre-wrap;`;
+    this.synergyTooltip.style.cssText = `position:fixed;top:calc(var(--sd-safe-t, 0px) + var(--sd-syn-top));left:50%;transform:translateX(-50%);background:rgba(10,5,30,0.92);border:1px solid #8866cc;border-radius:6px;padding:var(--sd-syn-pad);font-size:var(--sd-syn-fs);color:#dcd;font-family:monospace;pointer-events:auto;display:none;z-index:30;max-width:var(--sd-syn-maxw);line-height:1.5;white-space:pre-wrap;`;
     this.synergyTooltip.onclick = () => { this.selectedSynergyId = null; this.synergyTooltip.style.display = 'none'; };
     document.body.appendChild(this.synergyTooltip);
 
@@ -568,7 +570,7 @@ export class HUD {
 
       // Special ability / mechanic notes
       const specialDescs: Record<string, string> = {
-        betelgeuse: `${def.wavesUntilExplosion ?? 5}웨이브 생존 후 광역 폭발\n반경 3타일, 100 데미지\n폭발 후 소멸`,
+        betelgeuse: `${def.wavesUntilExplosion ?? 5}웨이브 생존 후 초신성 폭발\n반경 ${def.explosionRadius ?? 3}타일, ${Math.round(def.damage * (def.explosionDamageMult ?? 12.5))} 데미지\n폭발 자리에 잔해 성운(지속 피해 영역) 영구 잔류`,
         magnetar: '높은 사거리의 자기장 사격',
         supernova_remnant: '자동 공격 없음\n주변 적에게 지속 피해 (DoT 영역)',
         planetary_nebula: '자동 공격 없음\n범위 내 적 방어력 -5 디버프 오라',

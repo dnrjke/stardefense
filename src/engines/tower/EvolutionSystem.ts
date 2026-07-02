@@ -30,8 +30,8 @@ export const EVOLUTION_TREE: Record<string, EvolutionDef> = {
     { targetId: 'red_supergiant', nameKo: '적색 초거성', cost: 100, description: '스플래시 반경 1.0 추가' },
   ]},
   betelgeuse: { level: 1, paths: [
-    { targetId: 'pre_supernova', nameKo: '초신성 전조', cost: 80, description: '3웨이브 폭발 반경↑ 데미지↑' },
-    { targetId: 'pulsating_variable', nameKo: '맥동 변광성', cost: 90, description: '폭발→지속 범위 펄스' },
+    { targetId: 'pre_supernova', nameKo: '초신성 전조', cost: 80, description: '3웨이브 폭발 반경·데미지↑ 잔해 강화' },
+    { targetId: 'pulsating_variable', nameKo: '맥동 변광성', cost: 90, description: '폭발 무기한 연기, 지속 범위 펄스' },
   ]},
   wolf_rayet: { level: 1, paths: [
     { targetId: 'wc_type', nameKo: 'WC형', cost: 100, description: '스플래시↑ 범위 피해↑ 공속↓' },
@@ -42,6 +42,9 @@ export const EVOLUTION_TREE: Record<string, EvolutionDef> = {
     { targetId: 'millisecond_pulsar', nameKo: '밀리초 펄서', cost: 100, description: '공속×3 데미지×0.4' },
   ]},
   // Lv2 → Lv3 paths (only select Lv2 towers can evolve further)
+  subgiant: { level: 2, paths: [
+    { targetId: 'planetary_nebula', nameKo: '행성상 성운', cost: 80, description: '적 방어력-5 디버프 오라' },
+  ]},
   white_dwarf: { level: 2, paths: [
     { targetId: 'supernova_remnant', nameKo: '초신성 잔해', cost: 60, description: 'Ia형 초신성 → DoT 영역' },
   ]},
@@ -52,7 +55,7 @@ export const EVOLUTION_TREE: Record<string, EvolutionDef> = {
     { targetId: 'supernova_remnant', nameKo: '초신성 잔해', cost: 60, description: '폭발 후 DoT 영역' },
   ]},
   pulsating_variable: { level: 2, paths: [
-    { targetId: 'planetary_nebula', nameKo: '행성상 성운', cost: 80, description: '적 방어력-5 디버프' },
+    { targetId: 'ohir_star', nameKo: 'OH/IR 성', cost: 80, description: '먼지 껍질 — 적 방어력-5 오라' },
   ]},
   millisecond_pulsar: { level: 2, paths: [
     { targetId: 'pulsar', nameKo: '펄서', cost: 100, description: '360° 넉백+기절' },
@@ -218,6 +221,7 @@ export function computeEvolvedDef(baseDef: TowerDef, targetId: string): TowerDef
     // Lv3 evolutions
     case 'supernova_remnant':
     case 'planetary_nebula':
+    case 'ohir_star':
       return {
         ...target, ci: (baseDef.ci + target.ci) / 2,
         range: Math.max(target.range, baseDef.range * 0.8),

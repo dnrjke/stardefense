@@ -114,6 +114,7 @@ export function generateCrisisWave(crisisType: string, wave: number, scaling: He
         projectileSpeedMult: 1, waveRewardMult: 1, killRewardMult: 1,
         nebulaMult: 1, spellGaugeMult: 1, towerCostMult: 1,
         stealthFreqMult: 1, critChance: 0, critMultiplier: 1,
+        betelgeuseExplosionMult: 1,
       }, false);
   }
 }

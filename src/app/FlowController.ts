@@ -259,10 +259,35 @@ export class FlowController {
     });
   }
 
+  /** iOS PWA standalone: CSS viewport가 실제 화면보다 짧아 하단에 갭 발생.
+   *  body를 화면 높이로 확장하면 absolute 요소가 실제 하단까지 도달 가능.
+   *  (참고: 2Test1 Docs/KNOWN_ISSUES/platform/ios-standalone-viewport-gap.md) */
+  private standaloneFullH = 0;
+
+  private applyStandaloneViewportFix() {
+    const isStandalone = (navigator as unknown as { standalone?: boolean }).standalone === true
+      || window.matchMedia('(display-mode: standalone)').matches;
+    const gap = screen.height - window.innerHeight;
+    // gap이 상태바/홈바 수준(<120px)일 때만 적용 — landscape에서 screen.height가
+    // portrait 기준으로 남는 iOS 특성상 큰 gap은 방향 불일치이므로 제외
+    if (!isStandalone || gap <= 0 || gap > 120) {
+      if (this.standaloneFullH !== 0) {
+        this.standaloneFullH = 0;
+        document.body.style.height = '';
+      }
+      return;
+    }
+    this.standaloneFullH = screen.height;
+    document.body.style.height = `${screen.height}px`;
+    document.body.style.position = 'relative';
+    document.body.style.overflow = 'hidden';
+  }
+
   private resizeCanvas() {
+    this.applyStandaloneViewportFix();
     const rotation = displayMode.rotation;
     const vw = window.visualViewport?.width ?? window.innerWidth;
-    const vh = window.visualViewport?.height ?? window.innerHeight;
+    const vh = this.standaloneFullH || (window.visualViewport?.height ?? window.innerHeight);
     const targetAspect = 16 / 10;
 
     let cw: number;
@@ -452,12 +477,14 @@ export class FlowController {
       this.clearPreview();
     };
 
-    // Wire betelgeuse explosion
+    // Wire betelgeuse supernova: AoE blast, then a permanent remnant DoT zone on the tile
     this.towerEngine.onBetelgeuseExplode = (tower) => {
       const enemies = this.waveEngine!.getAliveEnemies();
-      const explosionRange = 3;
+      const def = tower.def;
+      const mods = computeMutationModifiers(store.getState().activeMutations);
+      const explosionRange = def.explosionRadius ?? 3;
       const explosionRangeSq = explosionRange * explosionRange;
-      const explosionDamage = 100;
+      const explosionDamage = Math.round(def.damage * (def.explosionDamageMult ?? 12.5) * mods.betelgeuseExplosionMult);
       for (const enemy of enemies) {
         if (!enemy.alive) continue;
         const dx = enemy.position.x - tower.mesh.position.x;
@@ -467,6 +494,7 @@ export class FlowController {
         }
       }
       this.spawnExplosionEffect(tower.mesh.position, explosionRange);
+      this.towerEngine!.spawnRemnant(tower.mesh.position.clone(), def.remnantDamage ?? 3, def.remnantRange ?? 1.5);
     };
 
     // Wire game logic
@@ -492,8 +520,9 @@ export class FlowController {
       const state = store.getState();
       this.towerEngine!.clearProjectiles();
 
+      const waveMods = computeMutationModifiers(state.activeMutations);
       for (const tower of this.towerEngine!.getTowers()) {
-        tower.onWaveCompleted();
+        tower.onWaveCompleted(waveMods.betelgeuseTimerOverride);
       }
 
       // Check betelgeuse explosions immediately after wave tracking
@@ -506,8 +535,7 @@ export class FlowController {
 
       if (config.isHeatDeath) {
         const reward = HEAT_DEATH_CONFIG.waveRewardBase + state.currentWave * HEAT_DEATH_CONFIG.waveRewardPerWave;
-        const modifiers = computeMutationModifiers(state.activeMutations);
-        const finalReward = Math.round(reward * modifiers.waveRewardMult);
+        const finalReward = Math.round(reward * waveMods.waveRewardMult);
         state.addIsm(finalReward);
         this.hud!.showWaveBanner(state.currentWave, finalReward);
         this.hud!.setCrisisWarning(null);
