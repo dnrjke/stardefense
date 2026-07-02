@@ -41,7 +41,7 @@ MusicSystem   → musicBus ┴→ masterGain → DynamicsCompressor → destinat
 - **설정 영속화**: `localStorage['sd_audio_settings_v2']` — muted/masterVolume/sfxVolume/musicVolume
   - 기본값: 마스터 100% / 효과음 80% / **배경음악 60%**
 - **볼륨 UI**: HUD 상단바 🔊 버튼 → 버튼 하단 부착형 패널. 마스터/배경음악/효과음 슬라이더(0~100%, 백분위 표기) + 헤더 측면 음소거 토글. 바깥 클릭 시 닫힘.
-- **스로틀**: 고빈도 사운드(enemy_hit 55ms, enemy_kill 70ms)는 최소 간격 + 덕킹으로 16배속에서도 포화 방지
+- **스로틀**: 고빈도 사운드(enemy_hit 55ms, enemy_kill 70ms)는 최소 간격 + 덕킹으로 최고 배속(x4)에서도 포화 방지
 
 ## 3. 통합 방식 (동시 작업 충돌 회피 설계)
 
@@ -63,8 +63,8 @@ MusicSystem   → musicBus ┴→ masterGain → DynamicsCompressor → destinat
 
 | ID | 트리거 | 합성 기법 |
 |---|---|---|
-| ui_click | 모든 버튼 클릭 | 삼각파 1.8kHz 틱 |
-| ui_select | 타워 팔레트 선택 | 사인 2음 상승 (880→1320Hz) |
+| ui_click | 모든 버튼 클릭 | 사인 520Hz 하강 블립 + LP 1.4kHz (저역, 소프트) |
+| ui_select | 타워 팔레트 선택 | 사인 2음 상승 (440→660Hz) + 220Hz 서브톤 + 잔향 |
 | ui_error | (예약) 자금 부족 등 | 사각파 저역 버즈 |
 | tower_place | 항성 배치 | 저음 사인 블룸(90→180Hz)+배음, 리버브 |
 | tower_sell | 철거 | 삼각파 하강 스윕 |

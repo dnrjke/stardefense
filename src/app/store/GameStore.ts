@@ -2,13 +2,9 @@ import { createStore } from 'zustand/vanilla';
 
 export type GamePhase = 'build' | 'wave' | 'result' | 'gameover' | 'clear';
 
-const SPEED_OPTIONS_DESKTOP = [1, 2, 4, 8, 16] as const;
-const SPEED_OPTIONS_MOBILE = [1, 2, 4] as const;
-// DisplayMode.detect()와 동일한 터치 감지 기준 (maxTouchPoints만 노출하는 기기 포함)
-const _isTouch = typeof window !== 'undefined'
-  && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
-const SPEED_OPTIONS: readonly number[] = _isTouch ? SPEED_OPTIONS_MOBILE : SPEED_OPTIONS_DESKTOP;
-export type SpeedMultiplier = 1 | 2 | 4 | 8 | 16;
+// 게임 배속 상한 x4 — 전 플랫폼 공통 (과거 데스크톱 x8/x16 옵션 폐지)
+const SPEED_OPTIONS = [1, 2, 4] as const;
+export type SpeedMultiplier = 1 | 2 | 4;
 
 export interface GameState {
   phase: GamePhase;

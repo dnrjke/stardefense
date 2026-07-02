@@ -318,20 +318,31 @@ export class AudioEngine {
 
   // ── 개별 사운드 정의 ──
 
-  /** 짧고 건조한 틱 — 버튼 클릭 */
+  /** 낮고 둥근 블립 — 버튼 클릭 (사인 하강 글라이드 + LP, 고역 트랜지언트 제거) */
   private sfxUiClick(t: number, v: number) {
-    const o = this.osc('triangle', 1800 * this.jitter(0.05), t, 0.05);
-    const g = this.env(t, 0.12 * v, 0.002, 0.045);
-    o.connect(g).connect(this.sfxBus);
+    const base = 520 * this.jitter(0.04);
+    const o = this.osc('sine', base, t, 0.09);
+    o.frequency.exponentialRampToValueAtTime(base * 0.72, t + 0.08);
+    const f = this.ctx!.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 1400;
+    const g = this.env(t, 0.11 * v, 0.006, 0.08);
+    o.connect(f).connect(g).connect(this.sfxBus);
   }
 
-  /** 부드러운 2음 상승 — 팔레트 선택 */
+  /** 따뜻한 저역 2음 상승 + 은은한 잔향 — 팔레트 선택 (우주적 소프트 톤) */
   private sfxUiSelect(t: number, v: number) {
-    const g = this.env(t, 0.1 * v, 0.005, 0.12);
-    const o1 = this.osc('sine', 880, t, 0.06);
-    const o2 = this.osc('sine', 1320, t + 0.05, 0.08);
-    o1.connect(g); o2.connect(g);
-    g.connect(this.sfxBus);
+    const f = this.ctx!.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 1800;
+    const g = this.env(t, 0.09 * v, 0.02, 0.28);
+    const o1 = this.osc('sine', 440, t, 0.14);
+    const o2 = this.osc('sine', 660, t + 0.09, 0.24);
+    // 옥타브 아래 서브톤으로 몸통을 채워 얇은 느낌 제거
+    const o3 = this.osc('sine', 220, t, 0.3);
+    const g3 = this.env(t, 0.04 * v, 0.03, 0.28);
+    o1.connect(f); o2.connect(f);
+    f.connect(g).connect(this.sfxBus);
+    o3.connect(g3).connect(this.sfxBus);
+    g.connect(this.reverbSend);
   }
 
   /** 낮은 버즈 — 배치 불가/자금 부족 */
