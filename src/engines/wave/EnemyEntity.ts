@@ -55,7 +55,8 @@ void main() {
     rockColor *= mix(0.6, 1.0, crater);
     vec3 N = normalize(vWorldNorm);
     vec3 V = normalize(vViewDir);
-    float NdotV = max(dot(N, V), 0.0);
+    // 상한 클램프 필수: 정규화 오차로 dot>1이면 pow(1.0-NdotV, k)가 NaN → 모바일 GPU에서 흰색 픽셀
+    float NdotV = clamp(dot(N, V), 0.0, 1.0);
     float limb = mix(0.4, 1.0, NdotV);
     vec3 emissive = vec3(0.18, 0.12, 0.06);
     gl_FragColor = vec4(rockColor * limb + emissive, 1.0);
@@ -105,7 +106,8 @@ void main() {
     vec3 iceColor = mix(vec3(0.3, 0.7, 0.95), vec3(0.6, 0.92, 1.0), f);
     vec3 N = normalize(vWorldNorm);
     vec3 V = normalize(vViewDir);
-    float NdotV = max(dot(N, V), 0.0);
+    // 상한 클램프 필수: 정규화 오차로 dot>1이면 pow(1.0-NdotV, k)가 NaN → 모바일 GPU에서 흰색 픽셀
+    float NdotV = clamp(dot(N, V), 0.0, 1.0);
     float fresnel = pow(1.0 - NdotV, 2.5);
     vec3 rimColor = vec3(0.5, 0.85, 1.0) * fresnel * 0.8;
     float pulse = 0.9 + 0.1 * sin(uTime * 3.0);
@@ -168,7 +170,8 @@ void main() {
     vec3 lavaColor = vec3(1.0, 0.3, 0.05) * lavaMask * 0.9;
     vec3 N = normalize(vWorldNorm);
     vec3 V = normalize(vViewDir);
-    float NdotV = max(dot(N, V), 0.0);
+    // 상한 클램프 필수: 정규화 오차로 dot>1이면 pow(1.0-NdotV, k)가 NaN → 모바일 GPU에서 흰색 픽셀
+    float NdotV = clamp(dot(N, V), 0.0, 1.0);
     float limb = mix(0.3, 1.0, NdotV);
     float fresnel = pow(1.0 - NdotV, 3.0);
     vec3 rimCol = vec3(0.5, 0.1, 0.02) * fresnel * 0.4;
@@ -223,7 +226,8 @@ void main() {
     vec3 n = normalize(vLocalPos);
     vec3 N = normalize(vWorldNorm);
     vec3 V = normalize(vViewDir);
-    float NdotV = max(dot(N, V), 0.0);
+    // 상한 클램프 필수: 정규화 오차로 dot>1이면 pow(1.0-NdotV, k)가 NaN → 모바일 GPU에서 흰색 픽셀
+    float NdotV = clamp(dot(N, V), 0.0, 1.0);
 
     float energyPulse = 0.6 + 0.4 * sin(uTime * 5.0);
     float fastPulse = 0.8 + 0.2 * sin(uTime * 12.0);
@@ -232,7 +236,7 @@ void main() {
     float f2 = fbm(n * 8.0 - uTime * 0.5 + vec3(5.0));
     float energyLines = smoothstep(0.4, 0.5, f1) * 0.7 + smoothstep(0.45, 0.55, f2) * 0.3;
 
-    vec3 coreColor = mix(vec3(0.0, 0.8, 1.0), vec3(1.0, 1.0, 1.0), energyPulse * 0.5);
+    vec3 coreColor = mix(vec3(0.0, 0.5, 0.75), vec3(0.7, 0.95, 1.0), energyPulse * 0.5);
     vec3 jetColor = vec3(0.2, 0.95, 1.0);
 
     float jetAxis = abs(n.y);
@@ -241,15 +245,18 @@ void main() {
     jetMask *= (0.6 + 0.4 * jetNoise);
 
     float fresnel = pow(1.0 - NdotV, 2.5);
-    vec3 rimGlow = vec3(0.3, 0.9, 1.0) * fresnel * 1.2 * energyPulse;
+    vec3 rimGlow = vec3(0.3, 0.9, 1.0) * fresnel * 0.6 * energyPulse;
 
     float limb = mix(0.5, 1.0, NdotV);
-    vec3 base = coreColor * limb * fastPulse;
-    vec3 energy = jetColor * energyLines * 0.8;
-    vec3 jets = vec3(0.5, 1.0, 1.0) * jetMask * 1.5;
-    vec3 emissive = vec3(0.1, 0.5, 0.6) * energyPulse;
+    // FBM 표면 디테일이 보이도록 코어를 노이즈로 변조 (가산 포화 → 백색 원 방지)
+    vec3 base = coreColor * limb * fastPulse * (0.55 + 0.45 * f1);
+    vec3 energy = jetColor * energyLines * 0.5;
+    vec3 jets = vec3(0.5, 1.0, 1.0) * jetMask * 0.8;
+    vec3 emissive = vec3(0.05, 0.25, 0.3) * energyPulse;
 
-    gl_FragColor = vec4(base + energy + jets + rimGlow + emissive, 1.0);
+    vec3 col = base + energy + jets + rimGlow + emissive;
+    col = col / (1.0 + 0.22 * col); // 소프트 톤맵: 밝은 부위 유지하며 백색 포화 방지
+    gl_FragColor = vec4(col, 1.0);
 }
 `;
 
@@ -299,7 +306,8 @@ void main() {
     vec3 n = normalize(vLocalPos);
     vec3 N = normalize(vWorldNorm);
     vec3 V = normalize(vViewDir);
-    float NdotV = max(dot(N, V), 0.0);
+    // 상한 클램프 필수: 정규화 오차로 dot>1이면 pow(1.0-NdotV, k)가 NaN → 모바일 GPU에서 흰색 픽셀
+    float NdotV = clamp(dot(N, V), 0.0, 1.0);
     float distort = fbm(n * 5.0 + uTime * 0.4);
     vec3 warpedN = normalize(n + vec3(distort * 0.3, distort * 0.2, distort * 0.3));
     float f2 = fbm(warpedN * 8.0 - uTime * 0.3);
@@ -359,7 +367,8 @@ void main() {
     vec3 n = normalize(vLocalPos);
     vec3 N = normalize(vWorldNorm);
     vec3 V = normalize(vViewDir);
-    float NdotV = max(dot(N, V), 0.0);
+    // 상한 클램프 필수: 정규화 오차로 dot>1이면 pow(1.0-NdotV, k)가 NaN → 모바일 GPU에서 흰색 픽셀
+    float NdotV = clamp(dot(N, V), 0.0, 1.0);
     float pulse1 = 0.6 + 0.4 * sin(uTime * 4.0);
     float pulse2 = 0.7 + 0.3 * sin(uTime * 7.0 + 1.5);
     float f1 = fbm(n * 6.0 + uTime * 1.2);
@@ -426,35 +435,38 @@ void main() {
     vec3 n = normalize(vLocalPos);
     vec3 N = normalize(vWorldNorm);
     vec3 V = normalize(vViewDir);
-    float NdotV = max(dot(N, V), 0.0);
+    // 상한 클램프 필수: 정규화 오차로 dot>1이면 pow(1.0-NdotV, k)가 NaN → 모바일 GPU에서 흰색 픽셀
+    float NdotV = clamp(dot(N, V), 0.0, 1.0);
 
     float pulse = 0.7 + 0.3 * sin(uTime * 6.0);
     float fastPulse = 0.8 + 0.2 * sin(uTime * 15.0);
 
-    // Bright white-blue core
-    float coreGlow = pow(NdotV, 3.0);
-    vec3 coreColor = mix(vec3(0.8, 0.9, 1.0), vec3(1.0, 1.0, 1.0), coreGlow) * (1.5 + 0.5 * pulse);
+    // 백청색 코어: 중심만 하얗게, 가장자리는 푸른색 (가산 합이 클리핑되지 않도록 억제)
+    float coreGlow = pow(NdotV, 4.0);
+    vec3 coreColor = mix(vec3(0.35, 0.45, 0.85), vec3(1.0, 1.0, 1.0), coreGlow) * (0.55 + 0.15 * pulse);
 
     // Orange accretion disk at equator
     float equator = 1.0 - abs(n.y);
     float diskMask = smoothstep(0.3, 0.8, equator);
     float diskNoise = fbm(n * 8.0 + vec3(uTime * 1.5, 0.0, uTime * 0.8));
-    vec3 diskColor = mix(vec3(1.0, 0.5, 0.1), vec3(1.0, 0.8, 0.3), diskNoise) * diskMask * 1.2;
+    vec3 diskColor = mix(vec3(1.0, 0.45, 0.1), vec3(1.0, 0.75, 0.25), diskNoise) * diskMask * (0.5 + 0.6 * diskNoise);
 
     // Jet beams along Y axis
     float jetAxis = abs(n.y);
     float jetMask = smoothstep(0.6, 0.95, jetAxis) * fastPulse;
     float jetNoise = fbm(n * 6.0 + vec3(0.0, uTime * 3.0, 0.0));
     jetMask *= (0.5 + 0.5 * jetNoise);
-    vec3 jetColor = vec3(0.6, 0.8, 1.0) * jetMask * 2.0;
+    vec3 jetColor = vec3(0.6, 0.8, 1.0) * jetMask * 0.9;
 
     float fresnel = pow(1.0 - NdotV, 2.0);
-    vec3 rimGlow = vec3(1.0, 0.7, 0.3) * fresnel * 0.8 * pulse;
+    vec3 rimGlow = vec3(1.0, 0.7, 0.3) * fresnel * 0.5 * pulse;
 
-    float limb = mix(0.6, 1.0, NdotV);
-    vec3 emissive = vec3(0.3, 0.2, 0.1) * pulse;
+    float limb = mix(0.5, 1.0, NdotV);
+    vec3 emissive = vec3(0.08, 0.08, 0.14) * pulse;
 
-    gl_FragColor = vec4(coreColor * limb + diskColor + jetColor + rimGlow + emissive, 1.0);
+    vec3 col = coreColor * limb + diskColor + jetColor + rimGlow + emissive;
+    col = col / (1.0 + 0.22 * col); // 소프트 톤맵: 밝은 부위 유지하며 백색 포화 방지
+    gl_FragColor = vec4(col, 1.0);
 }
 `;
 
@@ -504,7 +516,8 @@ void main() {
     vec3 n = normalize(vLocalPos);
     vec3 N = normalize(vWorldNorm);
     vec3 V = normalize(vViewDir);
-    float NdotV = max(dot(N, V), 0.0);
+    // 상한 클램프 필수: 정규화 오차로 dot>1이면 pow(1.0-NdotV, k)가 NaN → 모바일 GPU에서 흰색 픽셀
+    float NdotV = clamp(dot(N, V), 0.0, 1.0);
 
     float darkPulse = 0.5 + 0.5 * sin(uTime * 1.5);
     float chaosPulse = 0.6 + 0.4 * sin(uTime * 4.0 + 2.0);
