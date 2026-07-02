@@ -45,14 +45,32 @@ export const EVOLUTION_TREE: Record<string, EvolutionDef> = {
   subgiant: { level: 2, paths: [
     { targetId: 'planetary_nebula', nameKo: '행성상 성운', cost: 80, description: '적 방어력-5 디버프 오라' },
   ]},
+  flare_star: { level: 2, paths: [
+    { targetId: 'blue_dwarf', nameKo: '청색왜성', cost: 80, description: '플레어 주기 3초, 플레어 데미지×3' },
+  ]},
+  binary_system: { level: 2, paths: [
+    { targetId: 'contact_binary', nameKo: '접촉쌍성', cost: 70, description: '3연발 사격 (공통 외피)' },
+  ]},
+  sirius_b: { level: 2, paths: [
+    { targetId: 'supernova_remnant', nameKo: 'Ia형 초신성', cost: 60, description: '강착 한계 초과 — 적 근접 기폭 → 잔해' },
+  ]},
+  a_supergiant: { level: 2, paths: [
+    { targetId: 'cepheid', nameKo: '세페이드', cost: 100, description: '버프 오라 +25%, 반경 3.5' },
+  ]},
+  wc_type: { level: 2, paths: [
+    { targetId: 'supernova_remnant', nameKo: 'Ic형 초신성', cost: 60, description: '외피 잃은 붕괴 — 적 근접 기폭 → 잔해' },
+  ]},
+  wn_type: { level: 2, paths: [
+    { targetId: 'black_hole', nameKo: '블랙홀', cost: 150, description: '직접 붕괴 — 근접 즉사' },
+  ]},
   white_dwarf: { level: 2, paths: [
-    { targetId: 'supernova_remnant', nameKo: '초신성 잔해', cost: 60, description: 'Ia형 초신성 → DoT 영역' },
+    { targetId: 'supernova_remnant', nameKo: 'Ia형 초신성', cost: 60, description: '웨이브 종료 시 폭발 → DoT 잔해' },
   ]},
   blue_supergiant: { level: 2, paths: [
     { targetId: 'black_hole', nameKo: '블랙홀', cost: 150, description: '근접 즉사' },
   ]},
   red_supergiant: { level: 2, paths: [
-    { targetId: 'supernova_remnant', nameKo: '초신성 잔해', cost: 60, description: '폭발 후 DoT 영역' },
+    { targetId: 'supernova_remnant', nameKo: 'II형 초신성', cost: 60, description: '웨이브 종료 시 폭발 → DoT 잔해' },
   ]},
   pulsating_variable: { level: 2, paths: [
     { targetId: 'ohir_star', nameKo: 'OH/IR 성', cost: 80, description: '먼지 껍질 — 적 방어력-5 오라' },
@@ -85,14 +103,14 @@ export function computeEvolvedDef(baseDef: TowerDef, targetId: string): TowerDef
         projectileSpeed: baseDef.projectileSpeed,
       };
 
-    // Sol → White Dwarf: range=2, damage×3
+    // Sol → White Dwarf: range=2, damage×3, always-piercing shots
     case 'white_dwarf':
       return {
         ...target, id: `${baseDef.id}_white_dwarf`,
         nameKo: `${baseDef.nameKo} 백색왜성`,
         ci: target.ci, damage: baseDef.damage * 3,
         attackRate: baseDef.attackRate, range: 2,
-        projectileSpeed: target.projectileSpeed,
+        projectileSpeed: target.projectileSpeed, piercing: true,
       };
 
     // Proxima → Flare Star: keep base stats + periodic flare (handled by specialType)
@@ -108,7 +126,7 @@ export function computeEvolvedDef(baseDef: TowerDef, targetId: string): TowerDef
     // Proxima → Binary: dual shot at 70% each (handled by specialType)
     case 'binary_system':
       return {
-        ...target, id: `${baseDef.id}_binary`,
+        ...target, id: `${baseDef.id}_binary_system`,
         nameKo: `${baseDef.nameKo} 연성계`,
         ci: target.ci, damage: Math.round(baseDef.damage * 0.7),
         attackRate: baseDef.attackRate * 1.1, range: baseDef.range,
@@ -176,21 +194,21 @@ export function computeEvolvedDef(baseDef: TowerDef, targetId: string): TowerDef
         projectileSpeed: 0, noAttack: true,
       };
 
-    // WR → WC: bigger splash, slower
+    // WR → WC: bigger splash, 80% splash damage, slower
     case 'wc_type':
       return {
-        ...target, id: `${baseDef.id}_wc`,
+        ...target, id: `${baseDef.id}_wc_type`,
         nameKo: `${baseDef.nameKo} WC`,
         ci: target.ci, damage: baseDef.damage,
         attackRate: baseDef.attackRate * 0.7, range: baseDef.range,
         projectileSpeed: baseDef.projectileSpeed,
-        splashRadius: 2.0,
+        splashRadius: 2.0, splashDamageRatio: 0.8,
       };
 
     // WR → WN: smaller splash, higher damage, faster
     case 'wn_type':
       return {
-        ...target, id: `${baseDef.id}_wn`,
+        ...target, id: `${baseDef.id}_wn_type`,
         nameKo: `${baseDef.nameKo} WN`,
         ci: target.ci, damage: Math.round(baseDef.damage * 1.5),
         attackRate: baseDef.attackRate * 1.4, range: baseDef.range,
@@ -201,7 +219,7 @@ export function computeEvolvedDef(baseDef: TowerDef, targetId: string): TowerDef
     // Magnetar → SGR Repeater: periodic burst (handled by specialType)
     case 'sgr_repeater':
       return {
-        ...target, id: `${baseDef.id}_sgr`,
+        ...target, id: `${baseDef.id}_sgr_repeater`,
         nameKo: `${baseDef.nameKo} SGR`,
         ci: target.ci, damage: baseDef.damage,
         attackRate: baseDef.attackRate, range: baseDef.range,
@@ -211,15 +229,58 @@ export function computeEvolvedDef(baseDef: TowerDef, targetId: string): TowerDef
     // Magnetar → Millisecond Pulsar: attackRate×3, damage×0.4
     case 'millisecond_pulsar':
       return {
-        ...target, id: `${baseDef.id}_ms_pulsar`,
+        ...target, id: `${baseDef.id}_millisecond_pulsar`,
         nameKo: `${baseDef.nameKo} 밀리초`,
         ci: target.ci, damage: Math.round(baseDef.damage * 0.4),
         attackRate: baseDef.attackRate * 3, range: baseDef.range,
         projectileSpeed: target.projectileSpeed,
       };
 
-    // Lv3 evolutions
+    // Lv3: 즉시 무장 — 적이 폭발 반경에 들어오면 기폭, 잔해(DoT 존)로 전환.
+    // 기폭까지는 Lv2 스탯 그대로 계속 사격한다 (베텔게우스 폭발 파이프라인 재사용).
     case 'supernova_remnant':
+      return {
+        ...baseDef, id: `${baseDef.id}_supernova`,
+        nameKo: `${baseDef.nameKo} 초신성`,
+        specialType: 'betelgeuse',
+        wavesUntilExplosion: 0,
+        explosionRadius: target.explosionRadius,
+        explosionDamageMult: target.explosionDamageMult,
+        remnantDamage: target.remnantDamage,
+        remnantRange: target.remnantRange,
+        descriptionKo: target.descriptionKo,
+      };
+
+    // Lv3: 청색왜성 — 플레어 성의 말년, 잦고 뜨거운 플레어
+    case 'blue_dwarf':
+      return {
+        ...target, id: `${baseDef.id}_blue_dwarf`,
+        nameKo: `${baseDef.nameKo} 청색왜성`,
+        damage: Math.round(baseDef.damage * 1.3),
+        attackRate: baseDef.attackRate, range: baseDef.range,
+      };
+
+    // Lv3: 접촉쌍성 — 3연발
+    case 'contact_binary':
+      return {
+        ...target, id: `${baseDef.id}_contact_binary`,
+        nameKo: `${baseDef.nameKo} 접촉쌍성`,
+        damage: baseDef.damage,
+        attackRate: baseDef.attackRate, range: baseDef.range,
+        projectileSpeed: baseDef.projectileSpeed,
+      };
+
+    // Lv3: 세페이드 — 강화 버프 오라, 사거리 소폭 확대
+    case 'cepheid':
+      return {
+        ...target, id: `${baseDef.id}_cepheid`,
+        nameKo: `${baseDef.nameKo} 세페이드`,
+        damage: baseDef.damage,
+        attackRate: baseDef.attackRate, range: baseDef.range + 0.5,
+        projectileSpeed: baseDef.projectileSpeed,
+      };
+
+    // Lv3 auras
     case 'planetary_nebula':
     case 'ohir_star':
       return {

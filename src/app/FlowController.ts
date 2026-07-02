@@ -24,6 +24,7 @@ import { MAP_ENVIRONMENTS } from '@/shared/data/MapEnvironment';
 import { SpellEngine } from '@/engines/spell/SpellEngine';
 import { TOWER_DEFS, type TowerDef } from '@/shared/data/TowerData';
 import { ciToRgb } from '@/shared/data/ColorUtil';
+import { getTowerVisual, applyVisualTint } from '@/shared/data/TowerVisuals';
 import { getEvolutions, getEvolutionCost } from '@/engines/tower/EvolutionSystem';
 import type { MapDef } from '@/shared/data/MapData';
 import type { WaveDef } from '@/shared/data/WaveData';
@@ -31,6 +32,7 @@ import type { TowerEntity } from '@/engines/tower/TowerEntity';
 import { displayMode } from '@/shared/ui/DisplayMode';
 import { getProfile } from '@/shared/ui/LayoutProfile';
 import { worldToScreen } from '@/shared/ui/ScreenProjection';
+import { AudioBridge } from '@/engines/audio/AudioBridge';
 
 // ── Tutorial messages (map_1_1 specific) ──
 const TUTORIALS: Record<number, string> = {
@@ -209,6 +211,7 @@ export class FlowController {
   private selectedTower: TowerEntity | null = null;
   private storeUnsub: (() => void) | null = null;
   private mutationUI: MutationSelectUI | null = null;
+  private audioBridge: AudioBridge | null = null;
 
   private currentMapId: string | null = null;
   private screenState: ScreenState = 'mapSelect';
@@ -499,8 +502,10 @@ export class FlowController {
 
     // Wire game logic
     this.towerEngine.onEnemyHit = (enemy, damage) => {
-      const armorReduction = this.nebulaEngine!.getEnemyArmorReduction(enemy.position);
-      const adjustedDamage = damage + armorReduction;
+      // 장갑 감쇠(성운 타일 + 행성상 성운/OH/IR 오라)는 적의 실제 장갑까지만 상쇄
+      const armorReduction = this.nebulaEngine!.getEnemyArmorReduction(enemy.position)
+        + this.towerEngine!.getArmorDebuffAt(enemy.position);
+      const adjustedDamage = damage + Math.min(armorReduction, enemy.def.armor);
       const killed = this.waveEngine!.killEnemy(enemy, adjustedDamage);
       if (killed) {
         const reward = Math.round(enemy.def.reward * ismMult);
@@ -521,16 +526,10 @@ export class FlowController {
       this.towerEngine!.clearProjectiles();
 
       const waveMods = computeMutationModifiers(state.activeMutations);
+      // 퓨즈 카운트만 진행 — 무장(readyToExplode)되면 다음 웨이브에서 적 근접 시 기폭
+      // (웨이브 종료 직후 폭발은 적이 없어 무의미하므로 근접 트리거로 이관)
       for (const tower of this.towerEngine!.getTowers()) {
         tower.onWaveCompleted(waveMods.betelgeuseTimerOverride);
-      }
-
-      // Check betelgeuse explosions immediately after wave tracking
-      for (const tower of [...this.towerEngine!.getTowers()]) {
-        if (tower.readyToExplode) {
-          this.towerEngine!.onBetelgeuseExplode?.(tower);
-          this.towerEngine!.removeTower(tower);
-        }
       }
 
       if (config.isHeatDeath) {
@@ -824,6 +823,16 @@ export class FlowController {
       }
     });
 
+    // 사운드: 배선 완료 후 콜백 래핑 방식으로 훅 (AudioBridge 내부 처리)
+    this.audioBridge = new AudioBridge({
+      store,
+      towerEngine: this.towerEngine,
+      waveEngine: this.waveEngine,
+      nebulaEngine: this.nebulaEngine,
+      hud: this.hud,
+      radialMenu: this.radialMenu,
+    });
+
     requestAnimationFrame(() => this.resizeCanvas());
 
     // Tutorial
@@ -865,7 +874,8 @@ export class FlowController {
     this.clearPreview();
 
     const worldPos = this.mapEngine!.tileToWorld(row, col);
-    const [r, g, b] = ciToRgb(def.ci);
+    const vis = getTowerVisual(def);
+    const [r, g, b] = applyVisualTint(ciToRgb(def.ci), vis);
     const color = new BABYLON.Color3(r, g, b);
 
     const ghostMat = new BABYLON.StandardMaterial('previewMat', this.scene);
@@ -875,7 +885,7 @@ export class FlowController {
     ghostMat.specularColor = BABYLON.Color3.Black();
 
     this.previewMesh = BABYLON.MeshBuilder.CreateSphere('previewTower', {
-      diameter: 0.6,
+      diameter: 0.6 * vis.scale,
       segments: 16,
     }, this.scene);
     this.previewMesh.position.copyFrom(worldPos);
@@ -1062,6 +1072,8 @@ export class FlowController {
     this.radialMenu?.dispose();
     this.mutationUI?.dispose();
     this.mutationUI = null;
+    this.audioBridge?.dispose();
+    this.audioBridge = null;
 
     // Dispose map meshes from scene
     const toDispose = this.scene.meshes.filter(m =>

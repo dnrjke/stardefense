@@ -55,7 +55,11 @@ export class Projectile {
   damage: number;
   speed: number;
   splashRadius = 0;
-  /** 오리온 벨트 관통탄: 첫 명중 후 직선 비행하며 추가 관통 */
+  /** 스플래시 피해 비율 (기본 50%, WC형 80%) */
+  splashDamageRatio = 0.5;
+  /** 장갑 관통량 — 명중 시 적 장갑을 상한으로 데미지에 가산 (시리우스 B, 핵합성 시너지) */
+  armorPen = 0;
+  /** 오리온 벨트/백색왜성 관통탄: 첫 명중 후 직선 비행하며 추가 관통 */
   piercing = false;
   alive = true;
   private hitTargets = new Set<EnemyEntity>();

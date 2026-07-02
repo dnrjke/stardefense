@@ -9,6 +9,8 @@ import { ciToRgb } from '@/shared/data/ColorUtil';
 import { createNebulaPreview, createTowerPreview, disposeNebulaPreview, preloadPreviewShaders } from '@/shared/ui/NebulaPreview';
 import { getTowerRoleTag, getRoleTagStyle } from '@/shared/data/TowerRoleTags';
 import { displayMode } from '@/shared/ui/DisplayMode';
+import { audio, type VolumeChannel } from '@/engines/audio/AudioEngine';
+import { getTowerVisual, applyVisualTint } from '@/shared/data/TowerVisuals';
 
 export class HUD {
   private container: HTMLDivElement;
@@ -21,6 +23,9 @@ export class HUD {
 
   private selectedTowerId: string | null = null;
   private selectedNebulaId: string | null = null;
+  /** 하단 팔레트 카테고리 탭 (성운 해금 맵에서만 표시) */
+  private paletteTab: 'stars' | 'nebulae' = 'stars';
+  private paletteTabs!: HTMLDivElement;
   /** 터치 기기(모바일+태블릿) 전용: 팔레트 버튼 홀드로 열람 중인 정보 대상 (바깥 탭 시 해제) */
   private holdInfoKey: { kind: 'tower' | 'nebula'; id: string } | null = null;
   private dismissHoldInfo = (e: PointerEvent) => {
@@ -30,6 +35,17 @@ export class HUD {
     this.updateInfoPanel();
   };
   private infoPanel!: HTMLDivElement;
+  private audioBtn!: HTMLButtonElement;
+  private audioPanel!: HTMLDivElement;
+  private audioMuteBtn!: HTMLButtonElement;
+  private audioSliders = new Map<VolumeChannel, { slider: HTMLInputElement; pct: HTMLSpanElement }>();
+  /** 패널 바깥 클릭 시 닫기 (오디오 버튼 자체 클릭은 토글 로직에 위임) */
+  private dismissAudioPanel = (e: PointerEvent) => {
+    if (this.audioPanel.style.display === 'none') return;
+    const t = e.target as Node;
+    if (this.audioPanel.contains(t) || this.audioBtn.contains(t)) return;
+    this.audioPanel.style.display = 'none';
+  };
   private wavePreview!: HTMLSpanElement;
   private startWaveBtn!: HTMLButtonElement;
   private spellPanel!: HTMLDivElement;
@@ -104,10 +120,27 @@ export class HUD {
     this.speedBtn.onclick = () => this.onCycleSpeed?.();
     this.topBar.appendChild(this.speedBtn);
 
+    // 오디오 버튼 — 클릭 시 볼륨 조절 패널 토글 (설정은 AudioEngine이 localStorage에 유지)
+    this.audioBtn = document.createElement('button');
+    this.audioBtn.style.cssText = this.speedBtn.style.cssText;
+    this.audioBtn.textContent = audio.muted ? '\u{1F507}' : '\u{1F50A}';
+    this.audioBtn.onclick = () => {
+      const open = this.audioPanel.style.display !== 'none';
+      this.audioPanel.style.display = open ? 'none' : 'block';
+      if (!open) this.refreshAudioPanel();
+    };
+    this.topBar.appendChild(this.audioBtn);
+    this.buildAudioPanel();
+
     // Bottom bar — taller touch targets on mobile
     this.bottomBar = document.createElement('div');
     this.bottomBar.style.cssText = `position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;gap:var(--sd-bot-gap);padding:var(--sd-bot-pad);padding-left:var(--sd-bot-pad-l);padding-right:var(--sd-bot-pad-r);padding-bottom:var(--sd-bot-pad-b);pointer-events:auto;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none;`;
     this.container.appendChild(this.bottomBar);
+
+    // 팔레트 카테고리 탭 — 하단바 좌상단에 부착 (성운 해금 시에만 표시)
+    this.paletteTabs = document.createElement('div');
+    this.paletteTabs.style.cssText = 'position:absolute;left:var(--sd-bot-pad-l, 6px);bottom:0;display:none;gap:2px;pointer-events:auto;z-index:11;';
+    this.container.appendChild(this.paletteTabs);
 
     // Tutorial overlay
     this.tutorialOverlay = document.createElement('div');
@@ -140,6 +173,7 @@ export class HUD {
 
     // 터치 기기: 정보 패널 바깥을 탭하면 닫힘 (capture — 탭 자체의 동작은 그대로 진행)
     document.addEventListener('pointerdown', this.dismissHoldInfo, true);
+    document.addEventListener('pointerdown', this.dismissAudioPanel, true);
 
     // Synergy tooltip — toggled by clicking a badge
     this.synergyTooltip = document.createElement('div');
@@ -345,6 +379,7 @@ export class HUD {
       this.availableNebulae.join(','),
       this.selectedTowerId ?? '',
       this.selectedNebulaId ?? '',
+      this.paletteTab,
     ].join('|');
     if (bottomKey === this._lastBottomKey) return;
     this._lastBottomKey = bottomKey;
@@ -353,8 +388,14 @@ export class HUD {
 
     const paletteMinH = mob ? 'min-height:44px;' : '';  // touch target size — keep as JS
 
+    // 카테고리 탭 — 성운이 해금된 맵에서만 (그 외엔 탭 없이 항성만: 초반 맵 UI 간결화)
+    const hasNebulae = this.availableNebulae.length > 0;
+    this.renderPaletteTabs(hasNebulae);
+    const showStars = !hasNebulae || this.paletteTab === 'stars';
+    const showNebulae = hasNebulae && this.paletteTab === 'nebulae';
+
     // Tower palette
-    for (const tid of state.availableTowers) {
+    if (showStars) for (const tid of state.availableTowers) {
       const def = TOWER_DEFS[tid];
       if (!def) continue;
       const btn = document.createElement('button');
@@ -371,15 +412,8 @@ export class HUD {
       this.bottomBar.appendChild(btn);
     }
 
-    // Nebula separator (only if nebulae available)
-    if (this.availableNebulae.length > 0) {
-      const nebSep = document.createElement('div');
-      nebSep.style.cssText = 'width:1px;height:32px;background:#253;flex-shrink:0;';
-      this.bottomBar.appendChild(nebSep);
-    }
-
     // Nebula palette
-    if (this.availableNebulae.length === 0) return;
+    if (!showNebulae) return;
 
     for (const nid of this.availableNebulae) {
       const def = NEBULA_DEFS[nid];
@@ -396,6 +430,52 @@ export class HUD {
       if (displayMode.isTouch) this.bindHoldToInspect(btn, 'nebula', nid);
       this.bottomBar.appendChild(btn);
     }
+  }
+
+  /** 팔레트 좌상단 카테고리 탭 렌더링. 하단바 높이에 맞춰 바로 위에 부착 */
+  private renderPaletteTabs(visible: boolean) {
+    if (!visible) {
+      this.paletteTabs.style.display = 'none';
+      if (this.paletteTab !== 'stars') this.paletteTab = 'stars';
+      return;
+    }
+    this.paletteTabs.style.display = 'flex';
+    this.paletteTabs.innerHTML = '';
+
+    const tabs: { id: 'stars' | 'nebulae'; label: string; hasSelection: boolean }[] = [
+      { id: 'stars', label: '★ 항성', hasSelection: this.selectedTowerId !== null },
+      { id: 'nebulae', label: '✻ 성운', hasSelection: this.selectedNebulaId !== null },
+    ];
+
+    for (const tab of tabs) {
+      const active = this.paletteTab === tab.id;
+      const btn = document.createElement('button');
+      // 비활성 탭에 현재 선택이 있으면 점 표시로 위치 안내
+      btn.textContent = tab.label + (!active && tab.hasSelection ? ' •' : '');
+      btn.style.cssText = [
+        `background:${active ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.35)'}`,
+        `color:${active ? (tab.id === 'stars' ? '#8af' : '#8ea') : '#667'}`,
+        `border:1px solid ${active ? '#446' : '#334'}`,
+        'border-bottom:none',
+        'border-radius:6px 6px 0 0',
+        'padding:3px 10px 4px',
+        'cursor:pointer',
+        'font-family:monospace',
+        'font-size:var(--sd-bot-btn-fs, 11px)',
+        'white-space:nowrap',
+      ].join(';');
+      btn.onclick = () => {
+        if (this.paletteTab === tab.id) return;
+        this.paletteTab = tab.id;
+        this.render();
+      };
+      this.paletteTabs.appendChild(btn);
+    }
+
+    // 하단바 실제 높이 위에 부착 (레이아웃 확정 후 측정)
+    requestAnimationFrame(() => {
+      this.paletteTabs.style.bottom = `${this.bottomBar.offsetHeight}px`;
+    });
   }
 
   /** 터치 기기: 팔레트 버튼을 ~400ms 홀드하면 정보 패널 표시. 홀드 후 딸려오는 click(선택 토글)은 무시 */
@@ -549,7 +629,7 @@ export class HUD {
 
       // Live shader preview (same GLSL as in-game towerStar shader)
       const previewSize = mob ? 56 : 64;
-      const [r, g, b] = ciToRgb(def.ci);
+      const [r, g, b] = applyVisualTint(ciToRgb(def.ci), getTowerVisual(def));
       const previewCanvas = createTowerPreview([r, g, b], previewSize);
       this.infoPanel.appendChild(previewCanvas);
 
@@ -877,8 +957,90 @@ export class HUD {
     this.selectedNebulaId = null;
   }
 
+  /** 오디오 버튼 하단 부착형 볼륨 패널: 마스터/배경음악/효과음 슬라이더 + 음소거 토글 */
+  private buildAudioPanel() {
+    this.audioPanel = document.createElement('div');
+    this.audioPanel.style.cssText = `position:absolute;top:calc(var(--sd-top-h) + 6px);right:6px;width:250px;background:rgba(5,5,25,0.94);border:1px solid #446;border-radius:8px;padding:10px 12px;pointer-events:auto;display:none;z-index:40;font-family:monospace;box-shadow:0 4px 16px rgba(0,0,0,0.5);`;
+    this.container.appendChild(this.audioPanel);
+
+    // 헤더: 제목 + 측면 음소거 토글
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;';
+    const title = document.createElement('span');
+    title.textContent = '음량 설정';
+    title.style.cssText = 'font-size:12px;color:#8af;font-weight:bold;';
+    this.audioMuteBtn = document.createElement('button');
+    this.audioMuteBtn.style.cssText = 'background:#333;color:#aaa;border:1px solid #555;padding:3px 8px;cursor:pointer;font-family:monospace;font-size:13px;border-radius:4px;';
+    this.audioMuteBtn.onclick = () => {
+      audio.toggleMute();
+      this.refreshAudioPanel();
+    };
+    header.appendChild(title);
+    header.appendChild(this.audioMuteBtn);
+    this.audioPanel.appendChild(header);
+
+    const rows: { channel: VolumeChannel; label: string }[] = [
+      { channel: 'master', label: '마스터' },
+      { channel: 'music', label: '배경음악' },
+      { channel: 'sfx', label: '효과음' },
+    ];
+
+    for (const { channel, label } of rows) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;margin:7px 0;';
+
+      const lab = document.createElement('span');
+      lab.textContent = label;
+      lab.style.cssText = 'font-size:11px;color:#ccc;width:56px;flex-shrink:0;';
+
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = '0';
+      slider.max = '100';
+      slider.step = '1';
+      slider.value = String(Math.round(audio.getVolume(channel) * 100));
+      slider.style.cssText = 'flex:1;min-width:0;accent-color:#4af;cursor:pointer;height:18px;';
+
+      const pct = document.createElement('span');
+      pct.textContent = `${slider.value}%`;
+      pct.style.cssText = 'font-size:11px;color:#8af;width:36px;text-align:right;flex-shrink:0;';
+
+      slider.oninput = () => {
+        audio.setVolume(channel, Number(slider.value) / 100);
+        pct.textContent = `${slider.value}%`;
+      };
+      // 드래그 종료 시 확인음 (효과음/마스터만 — 음악은 재생 중이라 즉시 체감됨)
+      slider.onchange = () => {
+        if (channel !== 'music') audio.play('ui_select');
+      };
+
+      row.appendChild(lab);
+      row.appendChild(slider);
+      row.appendChild(pct);
+      this.audioPanel.appendChild(row);
+      this.audioSliders.set(channel, { slider, pct });
+    }
+
+    this.refreshAudioPanel();
+  }
+
+  /** 뮤트 상태·슬라이더 값을 현재 설정과 동기화 */
+  private refreshAudioPanel() {
+    const muted = audio.muted;
+    this.audioBtn.textContent = muted ? '\u{1F507}' : '\u{1F50A}';
+    this.audioMuteBtn.textContent = muted ? '\u{1F507} 해제' : '\u{1F50A} 음소거';
+    for (const [channel, { slider, pct }] of this.audioSliders) {
+      const v = Math.round(audio.getVolume(channel) * 100);
+      slider.value = String(v);
+      pct.textContent = `${v}%`;
+      slider.style.opacity = muted ? '0.45' : '1';
+      pct.style.opacity = muted ? '0.45' : '1';
+    }
+  }
+
   dispose() {
     document.removeEventListener('pointerdown', this.dismissHoldInfo, true);
+    document.removeEventListener('pointerdown', this.dismissAudioPanel, true);
     disposeNebulaPreview();
     this.synergyTooltip.remove();
     this.container.remove();

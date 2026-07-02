@@ -17,20 +17,12 @@ interface NebulaRemnant {
   mat: BABYLON.StandardMaterial;
 }
 
-interface NebulaDebuff {
-  position: BABYLON.Vector3;
-  range: number;
-  rangeSq: number;
-  armorDebuff: number;
-}
-
 export class TowerEngine {
   private scene: BABYLON.Scene;
   private mapEngine: MapEngine;
   private towers: TowerEntity[] = [];
   private projectiles: Projectile[] = [];
   private nebulaRemnants: NebulaRemnant[] = [];
-  private nebulaDebuffs: NebulaDebuff[] = [];
   private specialTimers = new Map<TowerEntity, number>();
   private synergyEngine = new SynergyEngine();
   private activeSynergies: ActiveSynergy[] = [];
@@ -152,10 +144,22 @@ export class TowerEngine {
         }
       }
 
+      // 무장된 초신성: 적이 폭발 반경에 들어오는 순간 기폭 (웨이브 종료 시점엔 적이 없으므로 근접 트리거)
       if (tower.readyToExplode) {
-        this.onBetelgeuseExplode?.(tower);
-        towersToRemove.push(tower);
-        continue;
+        const blastR = tower.def.explosionRadius ?? 3;
+        const blastRSq = blastR * blastR;
+        let triggered = false;
+        for (const enemy of enemies) {
+          if (!enemy.alive) continue;
+          const dx = enemy.position.x - tower.mesh.position.x;
+          const dz = enemy.position.z - tower.mesh.position.z;
+          if (dx * dx + dz * dz <= blastRSq) { triggered = true; break; }
+        }
+        if (triggered) {
+          this.onBetelgeuseExplode?.(tower);
+          towersToRemove.push(tower);
+          continue;
+        }
       }
 
       if (tower.def.specialType === 'black_hole') {
@@ -184,18 +188,18 @@ export class TowerEngine {
             const nz = dz / dist;
             enemy.position.x += nx * knockback;
             enemy.position.z += nz * knockback;
-            void stunDur;
+            enemy.applySlow(0, stunDur);
             this.onEnemyHit?.(enemy, tower.def.damage);
           }
         }
       }
 
-      // ── Flare Star: periodic AoE burst every 5s ──
+      // ── Flare Star line: periodic AoE burst (기본 5s / 청색왜성 3s) ──
       if (tower.def.specialType === 'flare_star') {
         const t = (this.specialTimers.get(tower) ?? 0) + dt;
-        if (t >= 5.0) {
+        if (t >= (tower.def.flareInterval ?? 5.0)) {
           this.specialTimers.set(tower, 0);
-          const flareDmg = tower.def.damage * 2;
+          const flareDmg = tower.def.damage * (tower.def.flareDamageMult ?? 2);
           const rSq = tower.def.range * tower.def.range;
           for (const enemy of enemies) {
             if (!enemy.alive) continue;
@@ -273,16 +277,17 @@ export class TowerEngine {
         }
       }
 
-      // ── A-Supergiant buff aura: +15% damage to towers within 2.5 tiles ──
+      // ── A-Supergiant line buff aura: 기본 +15%/2.5타일, 세페이드 +25%/3.5타일 ──
       if (tower.def.specialType === 'a_supergiant') {
-        const buffRange = 2.5;
+        const buffRange = tower.def.buffAuraRange ?? 2.5;
         const buffRangeSq = buffRange * buffRange;
+        const buffMult = 1 + (tower.def.buffAuraPercent ?? 0.15);
         for (const other of this.towers) {
           if (other === tower) continue;
           const dx = other.mesh.position.x - tower.mesh.position.x;
           const dz = other.mesh.position.z - tower.mesh.position.z;
           if (dx * dx + dz * dz <= buffRangeSq && !auraBuffed.has(other)) {
-            other.def.damage = Math.round(other.def.damage * 1.15);
+            other.def.damage = Math.round(other.def.damage * buffMult);
             auraBuffed.add(other);
           }
         }
@@ -290,22 +295,28 @@ export class TowerEngine {
 
       const proj = tower.fixedUpdate(dt, enemies);
       if (proj) {
-        if ((tower as any)._orionPiercing && Math.random() < 0.5) {
+        if (tower.def.piercing || ((tower as any)._orionPiercing && Math.random() < 0.5)) {
           proj.piercing = true;
         }
+        proj.armorPen = tower.def.armorDebuff ?? 0;
+        proj.splashDamageRatio = tower.def.splashDamageRatio ?? 0.5;
         this.projectiles.push(proj);
-        // ── Binary System: fire second projectile ──
+        // ── Binary System line: 추가 투사체 (연성계 2연발, 접촉쌍성 3연발) ──
         if (tower.def.specialType === 'binary_system' && proj.target.alive) {
-          const proj2 = new Projectile(
-            this.scene,
-            tower.mesh.position,
-            proj.target,
-            proj.damage,
-            proj.speed,
-            tower.getColor(),
-          );
-          if (tower.def.splashRadius) proj2.splashRadius = tower.def.splashRadius;
-          this.projectiles.push(proj2);
+          const extraShots = (tower.def.multiShotCount ?? 2) - 1;
+          for (let s = 0; s < extraShots; s++) {
+            const proj2 = new Projectile(
+              this.scene,
+              tower.mesh.position,
+              proj.target,
+              proj.damage,
+              proj.speed,
+              tower.getColor(),
+            );
+            if (tower.def.splashRadius) proj2.splashRadius = tower.def.splashRadius;
+            proj2.armorPen = tower.def.armorDebuff ?? 0;
+            this.projectiles.push(proj2);
+          }
         }
         // ── Trinary Star: 25% chance to fire at second target ──
         if ((tower as any)._trinaryMultiTarget && Math.random() < 0.25) {
@@ -322,6 +333,7 @@ export class TowerEngine {
           if (secondTarget) {
             const p2 = new Projectile(this.scene, tower.mesh.position, secondTarget, proj.damage, proj.speed, tower.getColor());
             if (tower.def.splashRadius) p2.splashRadius = tower.def.splashRadius;
+            p2.armorPen = tower.def.armorDebuff ?? 0;
             this.projectiles.push(p2);
           }
         }
@@ -343,34 +355,25 @@ export class TowerEngine {
       }
     }
 
-    for (const debuff of this.nebulaDebuffs) {
-      for (const enemy of enemies) {
-        if (!enemy.alive) continue;
-        const dx = enemy.position.x - debuff.position.x;
-        const dz = enemy.position.z - debuff.position.z;
-        if (dx * dx + dz * dz <= debuff.rangeSq) {
-          this.onEnemyHit?.(enemy, debuff.armorDebuff * dt);
-        }
-      }
-    }
-
     for (const proj of this.projectiles) {
       if (!proj.alive) continue;
       // 관통탄의 직선 비행 충돌 판정은 Projectile 내부에서 처리 (적마다 1회, 최대 3기)
       const hit = proj.fixedUpdate(dt, enemies);
       if (hit) {
-        this.onEnemyHit?.(proj.target, proj.damage);
+        // 장갑 관통: 적의 실제 장갑만큼만 상쇄 (무장갑 적에게 보너스 없음)
+        const pen = Math.min(proj.armorPen, proj.target.def.armor);
+        this.onEnemyHit?.(proj.target, proj.damage + pen);
         if (proj.splashRadius > 0) {
           const splashSq = proj.splashRadius * proj.splashRadius;
           const impactX = proj.target.position.x;
           const impactZ = proj.target.position.z;
-          const splashDmg = Math.round(proj.damage * 0.5);
+          const splashDmg = Math.round(proj.damage * proj.splashDamageRatio);
           for (const enemy of enemies) {
             if (!enemy.alive || enemy === proj.target) continue;
             const dx = enemy.position.x - impactX;
             const dz = enemy.position.z - impactZ;
             if (dx * dx + dz * dz <= splashSq) {
-              this.onEnemyHit?.(enemy, splashDmg);
+              this.onEnemyHit?.(enemy, splashDmg + Math.min(proj.armorPen, enemy.def.armor));
             }
           }
         }
@@ -380,6 +383,20 @@ export class TowerEngine {
     this.projectiles = this.projectiles.filter(p => p.alive);
   }
 
+  /** 행성상 성운/OH/IR 오라: 해당 위치의 적에게 적용되는 장갑 감쇠 합계 */
+  getArmorDebuffAt(pos: BABYLON.Vector3): number {
+    let total = 0;
+    for (const tower of this.towers) {
+      if (tower.def.specialType !== 'planetary_nebula' || tower.isDisabled()) continue;
+      const dx = pos.x - tower.mesh.position.x;
+      const dz = pos.z - tower.mesh.position.z;
+      if (dx * dx + dz * dz <= tower.def.range * tower.def.range) {
+        total += tower.def.armorDebuff ?? 5;
+      }
+    }
+    return total;
+  }
+
   findTowerAt(row: number, col: number): TowerEntity | null {
     return this.towers.find(t => t.row === row && t.col === col) ?? null;
   }
@@ -387,28 +404,6 @@ export class TowerEngine {
   evolveTower(tower: TowerEntity, evolutionId: string): boolean {
     const idx = this.towers.indexOf(tower);
     if (idx === -1) return false;
-
-    if (evolutionId === 'supernova_remnant') {
-      const pos = tower.mesh.position.clone();
-      const def = TOWER_DEFS[evolutionId];
-      this.removeTowerInternal(tower);
-      this.spawnRemnant(pos, def.damage, def.range);
-      return true;
-    }
-
-    if (evolutionId === 'planetary_nebula' || evolutionId === 'ohir_star') {
-      const pos = tower.mesh.position.clone();
-      const def = TOWER_DEFS[evolutionId];
-      const newDef = computeEvolvedDef(tower.def, evolutionId);
-      tower.evolve(newDef, 3);
-      this.nebulaDebuffs.push({
-        position: pos,
-        range: def.range,
-        rangeSq: def.range * def.range,
-        armorDebuff: def.armorDebuff ?? 5,
-      });
-      return true;
-    }
 
     const evolutions = getEvolutions(tower.def.id);
     if (!evolutions) return false;
@@ -521,7 +516,6 @@ export class TowerEngine {
     }
     this.towers = [];
     this.nebulaRemnants = [];
-    this.nebulaDebuffs = [];
     this.specialTimers.clear();
   }
 }

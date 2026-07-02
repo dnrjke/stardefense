@@ -3,6 +3,7 @@ import type { TowerDef } from '@/shared/data/TowerData';
 import type { EnemyEntity } from '@/engines/wave/EnemyEntity';
 import { Projectile } from './Projectile';
 import { ciToRgb } from '@/shared/data/ColorUtil';
+import { getTowerVisual, applyVisualTint } from '@/shared/data/TowerVisuals';
 
 // ── Tower Star Shader ─────────────────────────────────────────────────────
 // FBM noise contour lines + Fresnel rim glow + NdotV limb darkening
@@ -41,6 +42,9 @@ varying vec3 vViewDir;
 uniform float uTime;
 uniform vec3  uBaseColor;
 uniform float uSeed;
+uniform float uNoiseScale;
+uniform float uPulseSpeed;
+uniform float uPulseAmp;
 
 // ── Value noise + FBM (4 octaves) ──
 float _h(float n) { return fract(sin(n) * 43758.5453123); }
@@ -70,8 +74,8 @@ void main() {
 
     // ── Two FBM layers with per-tower seed ──
     float tSpeed = 0.12;
-    vec3  fp1 = n * 3.5 + vec3(uSeed, 0.0, uTime * tSpeed);
-    vec3  fp2 = n * 5.0 + vec3(uSeed * 0.7, uTime * tSpeed * 0.6, uTime * tSpeed * 0.4 + uSeed * 1.3);
+    vec3  fp1 = n * 3.5 * uNoiseScale + vec3(uSeed, 0.0, uTime * tSpeed);
+    vec3  fp2 = n * 5.0 * uNoiseScale + vec3(uSeed * 0.7, uTime * tSpeed * 0.6, uTime * tSpeed * 0.4 + uSeed * 1.3);
     float f1  = _fbm(fp1);
     float f2  = _fbm(fp2);
 
@@ -99,8 +103,8 @@ void main() {
     // ── Fresnel rim glow ──
     float fresnel = pow(1.0 - NdotV, 3.0);
 
-    // ── Pulsing emissive (subtle sine oscillation) ──
-    float pulse = 0.85 + 0.15 * sin(uTime * 2.0 + uSeed * 10.0);
+    // ── Pulsing emissive (변광성/플레어 성은 진폭·속도가 큼) ──
+    float pulse = (1.0 - uPulseAmp) + uPulseAmp * sin(uTime * uPulseSpeed + uSeed * 10.0);
 
     // ── Compose color ──
     // Base: star color with limb darkening
@@ -169,10 +173,11 @@ export class TowerEntity {
     this.rangeSq = def.range * def.range;
     this.seed = (_towerSeedCounter++) * 0.37;
 
-    const [r, g, b] = ciToRgb(def.ci);
+    const vis = getTowerVisual(def);
+    const [r, g, b] = applyVisualTint(ciToRgb(def.ci), vis);
     this.color = new BABYLON.Color3(r, g, b);
 
-    const diameter = 0.6;
+    const diameter = 0.6 * vis.scale;
     this.mesh = BABYLON.MeshBuilder.CreateSphere(`tower_${def.id}_${row}_${col}`, {
       diameter,
       segments: 24,
@@ -190,6 +195,7 @@ export class TowerEntity {
         uniforms: [
           'worldViewProjection', 'world', 'cameraPosition',
           'uTime', 'uBaseColor', 'uSeed',
+          'uNoiseScale', 'uPulseSpeed', 'uPulseAmp',
         ],
         needAlphaBlending: false,
       },
@@ -197,6 +203,9 @@ export class TowerEntity {
     this.shaderMat.setFloat('uTime', 0);
     this.shaderMat.setColor3('uBaseColor', this.color);
     this.shaderMat.setFloat('uSeed', this.seed);
+    this.shaderMat.setFloat('uNoiseScale', vis.noiseScale);
+    this.shaderMat.setFloat('uPulseSpeed', vis.pulseSpeed);
+    this.shaderMat.setFloat('uPulseAmp', vis.pulseAmp);
     this.shaderMat.backFaceCulling = true;
 
     this.mesh.material = this.shaderMat;
@@ -229,12 +238,19 @@ export class TowerEntity {
   }
 
   onWaveCompleted(wavesOverride?: number) {
-    if (this.def.specialType !== 'betelgeuse') return;
+    if (this.def.specialType !== 'betelgeuse' || this.readyToExplode) return;
     this.wavesAlive++;
     const fuse = wavesOverride ?? this.def.wavesUntilExplosion;
     if (fuse && this.wavesAlive >= fuse) {
-      this.readyToExplode = true;
+      this.arm();
     }
+  }
+
+  /** 초신성 무장: 이후 적이 폭발 반경에 들어오면 기폭. 시각적으로 밝은 적황색 발광 */
+  private arm() {
+    this.readyToExplode = true;
+    this.color = new BABYLON.Color3(1.0, 0.35, 0.12);
+    this.shaderMat.setColor3('uBaseColor', this.color);
   }
 
   resetCombatStats() {
@@ -261,11 +277,15 @@ export class TowerEntity {
     this.level = newLevel;
     this.rangeSq = newDef.range * newDef.range;
 
-    const [r, g, b] = ciToRgb(newDef.ci);
+    const vis = getTowerVisual(newDef);
+    const [r, g, b] = applyVisualTint(ciToRgb(newDef.ci), vis);
     this.color = new BABYLON.Color3(r, g, b);
     this.shaderMat.setColor3('uBaseColor', this.color);
+    this.shaderMat.setFloat('uNoiseScale', vis.noiseScale);
+    this.shaderMat.setFloat('uPulseSpeed', vis.pulseSpeed);
+    this.shaderMat.setFloat('uPulseAmp', vis.pulseAmp);
 
-    const newDiameter = newLevel === 2 ? 0.7 : newLevel >= 3 ? 0.8 : 0.6;
+    const newDiameter = (newLevel === 2 ? 0.7 : newLevel >= 3 ? 0.8 : 0.6) * vis.scale;
     this.mesh.dispose();
     this.mesh = BABYLON.MeshBuilder.CreateSphere(`tower_${newDef.id}_${this.row}_${this.col}`, {
       diameter: newDiameter,
@@ -299,6 +319,11 @@ export class TowerEntity {
 
     this.wavesAlive = 0;
     this.readyToExplode = false;
+    // 퓨즈 0 = 진화 즉시 무장 (Ia/II형 초신성 — 적 근접 시 기폭)
+    if (newDef.specialType === 'betelgeuse'
+      && newDef.wavesUntilExplosion !== undefined && newDef.wavesUntilExplosion <= 0) {
+      this.arm();
+    }
     this.pulsarTimer = 0;
     this.attackCooldown = 0;
 

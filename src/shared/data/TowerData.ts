@@ -16,11 +16,18 @@ export interface TowerDef {
   remnantDamage?: number;        // DoT dps of the supernova remnant left at the blast site
   remnantRange?: number;         // radius of that remnant zone
   noAttack?: boolean;
-  armorDebuff?: number;
+  armorDebuff?: number;      // 투사체 장갑 관통(공격 타워) 또는 오라 장갑 상쇄(planetary_nebula 계열)
+  piercing?: boolean;        // 백색왜성: 항상 관통탄 (오리온 벨트와 동일 메커니즘)
   pulsarInterval?: number;
   pulsarKnockback?: number;
   pulsarStunDuration?: number;
   splashRadius?: number;
+  splashDamageRatio?: number;    // 스플래시 피해 비율 (기본 0.5, WC형 0.8)
+  flareInterval?: number;        // flare_star 계열: 플레어 버스트 주기 (기본 5s)
+  flareDamageMult?: number;      // flare_star 계열: 플레어 데미지 배율 (기본 2)
+  multiShotCount?: number;       // binary_system 계열: 동시 발사 수 (기본 2, 접촉쌍성 3)
+  buffAuraRange?: number;        // a_supergiant 계열: 버프 오라 반경 (기본 2.5)
+  buffAuraPercent?: number;      // a_supergiant 계열: 버프량 (기본 0.15)
   descriptionKo?: string;
 }
 
@@ -135,6 +142,10 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     projectileSpeed: 0,
     specialType: 'supernova_remnant',
     noAttack: true,
+    explosionRadius: 3,
+    explosionDamageMult: 12.5,
+    remnantDamage: 5,
+    remnantRange: 2.5,
     descriptionKo: '별의 죽음이 남긴 잔해. 팽창하는 충격파가 주변을 영원히 불태운다.',
   },
   planetary_nebula: {
@@ -320,6 +331,29 @@ export const TOWER_DEFS: Record<string, TowerDef> = {
     spectralType: 'WN4', ci: -0.35, damage: 0, attackRate: 0, range: 0,
     cost: 110, projectileSpeed: 7, splashRadius: 1.0,
     descriptionKo: '질소 방출선의 집중된 에너지. 직격 데미지가 크게 증가하고 공속이 빨라진다.',
+  },
+
+  // ── Lv3 신규 (2026-07-03 진화 트리 보강) ──
+  blue_dwarf: {
+    id: 'blue_dwarf', name: 'Blue Dwarf', nameKo: '청색왜성',
+    spectralType: 'M-blue', ci: -0.05, damage: 0, attackRate: 0, range: 0,
+    cost: 80, projectileSpeed: 11,
+    specialType: 'flare_star', flareInterval: 3, flareDamageMult: 3,
+    descriptionKo: '수조 년 뒤 M왜성의 이론적 말년. 대류로 수소를 남김없이 태우며 붉은 별이 푸르게 달아오른다 — 플레어가 더 잦고, 더 뜨겁다.',
+  },
+  contact_binary: {
+    id: 'contact_binary', name: 'Contact Binary', nameKo: '접촉쌍성',
+    spectralType: 'W UMa', ci: 1.4, damage: 0, attackRate: 0, range: 0,
+    cost: 70, projectileSpeed: 10,
+    specialType: 'binary_system', multiShotCount: 3,
+    descriptionKo: '두 별이 하나의 외피를 공유할 만큼 가까워진 쌍성. 뒤엉킨 광구에서 세 갈래의 사격이 쏟아진다.',
+  },
+  cepheid: {
+    id: 'cepheid', name: 'Cepheid Variable', nameKo: '세페이드 변광성',
+    spectralType: 'F8Ib', ci: 0.6, damage: 0, attackRate: 0, range: 0,
+    cost: 100, projectileSpeed: 9,
+    specialType: 'a_supergiant', buffAuraRange: 3.5, buffAuraPercent: 0.25,
+    descriptionKo: '불안정대를 통과하며 규칙적으로 맥동하는 초거성 — 우주의 거리를 재는 표준 촛불. 그 리듬이 주변 별들을 고무한다.',
   },
 
   // Magnetar Lv2 paths
