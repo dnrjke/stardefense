@@ -18,7 +18,7 @@ export class MutationSelectUI {
 
   constructor() {
     this.container = document.createElement('div');
-    this.container.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(0,0,10,0.9);font-family:monospace;color:#fff;';
+    this.container.style.cssText = 'position:absolute;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(0,0,10,0.9);font-family:monospace;color:#fff;padding:var(--sd-safe-t, 0px) var(--sd-safe-r, 0px) var(--sd-safe-b, 0px) var(--sd-safe-l, 0px);box-sizing:border-box;';
     document.body.appendChild(this.container);
   }
 

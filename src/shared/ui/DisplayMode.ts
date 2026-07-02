@@ -86,9 +86,14 @@ if (import.meta.env.DEV) {
 
 // ── CSS Custom Properties ──
 
-function si(side: string, fb = '0px'): string {
-  return `env(safe-area-inset-${side}, ${fb})`;
-}
+// Safe area는 HUD/오버레이 "컨테이너" 단위로 한 번만 적용한다 (--sd-safe-*).
+// 개별 요소 변수에 env()를 가산하면 컨테이너 inset과 중복되므로 금지.
+const SAFE_VARS: Record<string, string> = {
+  '--sd-safe-t': 'env(safe-area-inset-top, 0px)',
+  '--sd-safe-b': 'env(safe-area-inset-bottom, 0px)',
+  '--sd-safe-l': 'env(safe-area-inset-left, 0px)',
+  '--sd-safe-r': 'env(safe-area-inset-right, 0px)',
+};
 
 const CSS_VARS: Record<DisplayModeType, Record<string, string>> = {
   desktop: {
@@ -96,20 +101,20 @@ const CSS_VARS: Record<DisplayModeType, Record<string, string>> = {
     '--sd-top-fs':          '14px',
     '--sd-top-gap':         '8px',
     '--sd-top-pad':         '0 16px',
-    '--sd-top-pad-l':       `calc(16px + ${si('left')})`,
-    '--sd-top-pad-r':       `calc(16px + ${si('right')})`,
+    '--sd-top-pad-l':       '16px',
+    '--sd-top-pad-r':       '16px',
     '--sd-back-pad':        '4px 10px',
     '--sd-back-fs':         '12px',
     '--sd-back-minh':       'auto',
     '--sd-bot-gap':         '8px',
     '--sd-bot-pad':         '8px 16px',
-    '--sd-bot-pad-l':       `calc(16px + ${si('left')})`,
-    '--sd-bot-pad-r':       `calc(16px + ${si('right')})`,
-    '--sd-bot-pad-b':       `calc(8px + ${si('bottom')})`,
+    '--sd-bot-pad-l':       '16px',
+    '--sd-bot-pad-r':       '16px',
+    '--sd-bot-pad-b':       '8px',
     '--sd-bot-btn-pad':     '6px 12px',
     '--sd-bot-btn-fs':      '12px',
-    '--sd-start-r':         `calc(16px + ${si('right')})`,
-    '--sd-start-b':         `calc(76px + ${si('bottom')})`,
+    '--sd-start-r':         '16px',
+    '--sd-start-b':         '76px',
     '--sd-start-pad':       '10px 20px',
     '--sd-start-fs':        '14px',
     '--sd-spell-w':         '120px',
@@ -125,7 +130,7 @@ const CSS_VARS: Record<DisplayModeType, Record<string, string>> = {
     '--sd-spell-name-mob':  '0',   // 0 = show full name+cost
     '--sd-info-w':          '196px',
     '--sd-info-fs':         '11px',
-    '--sd-info-maxh':       'calc(100dvh - 50px - 72px - 16px)',
+    '--sd-info-maxh':       'calc(100dvh - var(--sd-safe-t, 0px) - var(--sd-safe-b, 0px) - 50px - 72px - 16px)',
     '--sd-tut-top':         '50px',
     '--sd-tut-pad':         '12px 24px',
     '--sd-tut-fs':          '14px',
@@ -153,20 +158,20 @@ const CSS_VARS: Record<DisplayModeType, Record<string, string>> = {
     '--sd-top-fs':          '12px',
     '--sd-top-gap':         '4px',
     '--sd-top-pad':         '0 8px',
-    '--sd-top-pad-l':       `calc(8px + ${si('left')})`,
-    '--sd-top-pad-r':       `calc(8px + ${si('right')})`,
+    '--sd-top-pad-l':       '8px',
+    '--sd-top-pad-r':       '8px',
     '--sd-back-pad':        '6px 12px',
     '--sd-back-fs':         '11px',
     '--sd-back-minh':       '32px',
     '--sd-bot-gap':         '4px',
     '--sd-bot-pad':         '6px 6px',
-    '--sd-bot-pad-l':       `calc(6px + ${si('left')})`,
-    '--sd-bot-pad-r':       `calc(6px + ${si('right')})`,
-    '--sd-bot-pad-b':       `calc(6px + ${si('bottom')})`,
+    '--sd-bot-pad-l':       '6px',
+    '--sd-bot-pad-r':       '6px',
+    '--sd-bot-pad-b':       '6px',
     '--sd-bot-btn-pad':     '8px 8px',
     '--sd-bot-btn-fs':      '11px',
-    '--sd-start-r':         `calc(8px + ${si('right')})`,
-    '--sd-start-b':         `calc(64px + ${si('bottom')})`,
+    '--sd-start-r':         '8px',
+    '--sd-start-b':         '64px',
     '--sd-start-pad':       '10px 16px',
     '--sd-start-fs':        '13px',
     '--sd-spell-w':         '90px',
@@ -176,13 +181,13 @@ const CSS_VARS: Record<DisplayModeType, Record<string, string>> = {
     '--sd-spell-gauge-h':   '8px',
     '--sd-spell-gauge-mb':  '2px',
     '--sd-spell-gap':       '4px',
-    '--sd-spell-r':         `calc(8px + ${si('right')})`,
+    '--sd-spell-r':         '8px',
     '--sd-spell-btn-pad':   '6px 4px',
     '--sd-spell-btn-minh':  '36px',
     '--sd-spell-name-mob':  '1',   // 1 = show short name only
     '--sd-info-w':          '148px',
     '--sd-info-fs':         '10px',
-    '--sd-info-maxh':       'calc(100dvh - 50px - 58px - 16px)',
+    '--sd-info-maxh':       'calc(100dvh - var(--sd-safe-t, 0px) - var(--sd-safe-b, 0px) - 50px - 58px - 16px)',
     '--sd-tut-top':         '40px',
     '--sd-tut-pad':         '8px 16px',
     '--sd-tut-fs':          '12px',
@@ -194,7 +199,7 @@ const CSS_VARS: Record<DisplayModeType, Record<string, string>> = {
     '--sd-syn-maxw':        '80vw',
     '--sd-mut-top':         '140px',
     '--sd-mut-maxw':        '80px',
-    '--sd-mut-r':           `calc(8px + ${si('right')})`,
+    '--sd-mut-r':           '8px',
     '--sd-crisis-top':      '36px',
     '--sd-crisis-pad':      '4px 12px',
     '--sd-crisis-fs':       '11px',
@@ -210,20 +215,20 @@ const CSS_VARS: Record<DisplayModeType, Record<string, string>> = {
     '--sd-top-fs':          '12px',
     '--sd-top-gap':         '4px',
     '--sd-top-pad':         '0 8px',
-    '--sd-top-pad-l':       `calc(8px + ${si('left')})`,
-    '--sd-top-pad-r':       `calc(8px + ${si('right')})`,
+    '--sd-top-pad-l':       '8px',
+    '--sd-top-pad-r':       '8px',
     '--sd-back-pad':        '6px 12px',
     '--sd-back-fs':         '11px',
     '--sd-back-minh':       '32px',
     '--sd-bot-gap':         '4px',
     '--sd-bot-pad':         '6px 6px',
-    '--sd-bot-pad-l':       `calc(6px + ${si('left')})`,
-    '--sd-bot-pad-r':       `calc(6px + ${si('right')})`,
-    '--sd-bot-pad-b':       `calc(6px + ${si('bottom')})`,
+    '--sd-bot-pad-l':       '6px',
+    '--sd-bot-pad-r':       '6px',
+    '--sd-bot-pad-b':       '6px',
     '--sd-bot-btn-pad':     '6px 6px',
     '--sd-bot-btn-fs':      '10px',
-    '--sd-start-r':         `calc(8px + ${si('right')})`,
-    '--sd-start-b':         `calc(64px + ${si('bottom')})`,
+    '--sd-start-r':         '8px',
+    '--sd-start-b':         '64px',
     '--sd-start-pad':       '10px 16px',
     '--sd-start-fs':        '13px',
     '--sd-spell-w':         '80px',
@@ -233,13 +238,13 @@ const CSS_VARS: Record<DisplayModeType, Record<string, string>> = {
     '--sd-spell-gauge-h':   '8px',
     '--sd-spell-gauge-mb':  '2px',
     '--sd-spell-gap':       '4px',
-    '--sd-spell-r':         `calc(8px + ${si('right')})`,
+    '--sd-spell-r':         '8px',
     '--sd-spell-btn-pad':   '6px 4px',
     '--sd-spell-btn-minh':  '36px',
     '--sd-spell-name-mob':  '1',
     '--sd-info-w':          '130px',
     '--sd-info-fs':         '10px',
-    '--sd-info-maxh':       'calc(100dvh - 50px - 58px - 16px)',
+    '--sd-info-maxh':       'calc(100dvh - var(--sd-safe-t, 0px) - var(--sd-safe-b, 0px) - 50px - 58px - 16px)',
     '--sd-tut-top':         '40px',
     '--sd-tut-pad':         '8px 16px',
     '--sd-tut-fs':          '12px',
@@ -251,7 +256,7 @@ const CSS_VARS: Record<DisplayModeType, Record<string, string>> = {
     '--sd-syn-maxw':        '80vw',
     '--sd-mut-top':         '140px',
     '--sd-mut-maxw':        '80px',
-    '--sd-mut-r':           `calc(8px + ${si('right')})`,
+    '--sd-mut-r':           '8px',
     '--sd-crisis-top':      '36px',
     '--sd-crisis-pad':      '4px 12px',
     '--sd-crisis-fs':       '11px',
@@ -266,6 +271,9 @@ const CSS_VARS: Record<DisplayModeType, Record<string, string>> = {
 
 function applyLayoutVars(mode: DisplayModeType) {
   const root = document.documentElement.style;
+  for (const [key, val] of Object.entries(SAFE_VARS)) {
+    root.setProperty(key, val);
+  }
   const vars = CSS_VARS[mode];
   for (const [key, val] of Object.entries(vars)) {
     root.setProperty(key, val);

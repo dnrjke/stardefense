@@ -144,15 +144,15 @@ export function generateAppIcon(): void {
   ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
 
-  // Apply as apple-touch-icon
+  // apple-touch-icon은 정적 PNG(index.html의 icon-192.png)를 우선 사용 —
+  // iOS는 홈 화면 추가 시 URL을 직접 fetch하므로 data URL은 신뢰할 수 없음.
   const dataUrl = c.toDataURL('image/png');
-  let link = document.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]');
-  if (!link) {
-    link = document.createElement('link');
+  if (!document.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]')) {
+    const link = document.createElement('link');
     link.rel = 'apple-touch-icon';
+    link.href = dataUrl;
     document.head.appendChild(link);
   }
-  link.href = dataUrl;
 
   // Also set as favicon (for browsers that don't support SVG favicon)
   let favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"][type="image/png"]');

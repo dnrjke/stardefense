@@ -35,7 +35,8 @@ export class MapSelectScreen {
     this.store = campaignStore;
 
     this.container = document.createElement('div');
-    this.container.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:50;font-family:monospace;color:#fff;display:none;';
+    // absolute: iOS standalone에서 body가 화면 높이로 확장돼도 하단까지 배경이 도달
+    this.container.style.cssText = 'position:absolute;inset:0;z-index:50;font-family:monospace;color:#fff;display:none;';
     document.body.appendChild(this.container);
   }
 
@@ -82,7 +83,7 @@ export class MapSelectScreen {
 
     const mob = displayMode.isMobile;
     const content = document.createElement('div');
-    content.style.cssText = `position:relative;z-index:1;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:${mob ? '16px 0' : '40px 0'};`;
+    content.style.cssText = `position:relative;z-index:1;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:calc(${mob ? 16 : 40}px + var(--sd-safe-t, 0px)) var(--sd-safe-r, 0px) calc(${mob ? 16 : 40}px + var(--sd-safe-b, 0px)) var(--sd-safe-l, 0px);box-sizing:border-box;`;
     this.container.appendChild(content);
 
     for (const actNum of [1, 2, 3, 4, 5]) {

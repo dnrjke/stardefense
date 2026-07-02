@@ -58,7 +58,7 @@ export class RadialMenu {
 
     const backdrop = document.createElement('div');
     const topBarH = p.topBarHeight;
-    backdrop.style.cssText = `position:absolute;top:${topBarH}px;left:0;width:100%;height:calc(100% - ${topBarH}px);pointer-events:auto;`;
+    backdrop.style.cssText = `position:absolute;top:calc(var(--sd-safe-t, 0px) + ${topBarH}px);left:0;width:100%;height:calc(100% - var(--sd-safe-t, 0px) - ${topBarH}px);pointer-events:auto;`;
     backdrop.onclick = (e) => {
       e.stopPropagation();
       if (Date.now() - this.showTime < 250) return;
